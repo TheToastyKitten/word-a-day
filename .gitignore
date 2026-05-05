@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+
+# Xcode user-specific stuff
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# XcodeGen-managed: regenerable from project.yml
+# (uncomment the next line if you want the .xcodeproj to live only on developer machines)
+# RussianWordOfDay.xcodeproj/
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Package.resolved
+
+# CocoaPods (not used, but in case)
+Pods/

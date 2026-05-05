@@ -1,0 +1,402 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01008E683023187CAFCFBA48 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94E58577DD380BD9A81A0E0 /* AppDelegate.swift */; };
+		0A3F0110F8B7919F156C7FAF /* words.seed.json in Resources */ = {isa = PBXBuildFile; fileRef = CF864B749345269C09167E11 /* words.seed.json */; };
+		18D797675FAF45060864815C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E9E024F7B2871C9251E8ED /* RootView.swift */; };
+		1E7278CE30954637E328ACB6 /* CyrillicAlphabet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119C9D269F5259753736604C /* CyrillicAlphabet.swift */; };
+		2DE3391EEF45E893F078D8CB /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46B42B8AADF55D988926223 /* MainView.swift */; };
+		4175BB028AD561B21F05E7AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 62ABDADFEC80A7711A84E2BE /* Assets.xcassets */; };
+		445DCA801C69CAA879944A0D /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */; };
+		4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */; };
+		91363713046B15B648A97D78 /* WordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33212C89C1013DFB8B90080 /* WordStore.swift */; };
+		9FE1F612784ED4708FA9979E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5096B343BA7EA1C0DEC57E /* Models.swift */; };
+		AAEB666EF11C04CE80F25955 /* WordOfDayScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */; };
+		D9CAAD359E4CA6359EEF480C /* RussianWordOfDayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */; };
+		DB1C4D9FC63F5E1BFB83359A /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CA3F76A69ECD8D41E19EEF /* AppRouter.swift */; };
+		DFBF054F13546A2D7593AF96 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418632C8BD929E7B2CEB1E11 /* AppSettings.swift */; };
+		E32F96FF207A62169C5998B7 /* AlphabetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DED58D17D5C538980376CB /* AlphabetView.swift */; };
+		EB7395F553CFFB16BFCA1B98 /* WordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293787A43EC974A5B4771035 /* WordDetailView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		119C9D269F5259753736604C /* CyrillicAlphabet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyrillicAlphabet.swift; sourceTree = "<group>"; };
+		22E9E024F7B2871C9251E8ED /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		293787A43EC974A5B4771035 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
+		2A5096B343BA7EA1C0DEC57E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordOfDayScheduler.swift; sourceTree = "<group>"; };
+		418632C8BD929E7B2CEB1E11 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		55DED58D17D5C538980376CB /* AlphabetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlphabetView.swift; sourceTree = "<group>"; };
+		57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianWordOfDayApp.swift; sourceTree = "<group>"; };
+		62ABDADFEC80A7711A84E2BE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		71CA3F76A69ECD8D41E19EEF /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		9120D66EDE81921A5C14FA10 /* RussianWordOfDay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RussianWordOfDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
+		CF864B749345269C09167E11 /* words.seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = words.seed.json; sourceTree = "<group>"; };
+		D46B42B8AADF55D988926223 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		F33212C89C1013DFB8B90080 /* WordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordStore.swift; sourceTree = "<group>"; };
+		F94E58577DD380BD9A81A0E0 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		22E6D52EF2897C5A59A04352 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				55DED58D17D5C538980376CB /* AlphabetView.swift */,
+				D46B42B8AADF55D988926223 /* MainView.swift */,
+				22E9E024F7B2871C9251E8ED /* RootView.swift */,
+				24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */,
+				293787A43EC974A5B4771035 /* WordDetailView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		2AEE9C6BA530DD281AC85325 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				22E6D52EF2897C5A59A04352 /* Views */,
+				F94E58577DD380BD9A81A0E0 /* AppDelegate.swift */,
+				71CA3F76A69ECD8D41E19EEF /* AppRouter.swift */,
+				418632C8BD929E7B2CEB1E11 /* AppSettings.swift */,
+				119C9D269F5259753736604C /* CyrillicAlphabet.swift */,
+				2A5096B343BA7EA1C0DEC57E /* Models.swift */,
+				B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */,
+				57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */,
+				3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */,
+				F33212C89C1013DFB8B90080 /* WordStore.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		3A527CFDC1AE45305F40D855 /* RussianWordOfDayApp */ = {
+			isa = PBXGroup;
+			children = (
+				51B0CDF485E019869508E555 /* Resources */,
+				2AEE9C6BA530DD281AC85325 /* Sources */,
+			);
+			path = RussianWordOfDayApp;
+			sourceTree = "<group>";
+		};
+		47EB0A79DE2EF9FA531E6E0E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9120D66EDE81921A5C14FA10 /* RussianWordOfDay.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		51B0CDF485E019869508E555 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				62ABDADFEC80A7711A84E2BE /* Assets.xcassets */,
+				CF864B749345269C09167E11 /* words.seed.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		B605E233CCF4656191AF50F7 = {
+			isa = PBXGroup;
+			children = (
+				3A527CFDC1AE45305F40D855 /* RussianWordOfDayApp */,
+				47EB0A79DE2EF9FA531E6E0E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A0F12C72249C00DE5F0B872D /* RussianWordOfDay */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD6B09C450DA5B2D1D34032C /* Build configuration list for PBXNativeTarget "RussianWordOfDay" */;
+			buildPhases = (
+				86641DD49C40CEBA80BE6F72 /* Sources */,
+				99CF0CE74EBC62C004A720E8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RussianWordOfDay;
+			packageProductDependencies = (
+			);
+			productName = RussianWordOfDay;
+			productReference = 9120D66EDE81921A5C14FA10 /* RussianWordOfDay.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		695D48DDCACBED72858A0983 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					A0F12C72249C00DE5F0B872D = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = ED92AEB1B485316FE9DC14AD /* Build configuration list for PBXProject "RussianWordOfDay" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = B605E233CCF4656191AF50F7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 47EB0A79DE2EF9FA531E6E0E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A0F12C72249C00DE5F0B872D /* RussianWordOfDay */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		99CF0CE74EBC62C004A720E8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4175BB028AD561B21F05E7AA /* Assets.xcassets in Resources */,
+				0A3F0110F8B7919F156C7FAF /* words.seed.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		86641DD49C40CEBA80BE6F72 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E32F96FF207A62169C5998B7 /* AlphabetView.swift in Sources */,
+				01008E683023187CAFCFBA48 /* AppDelegate.swift in Sources */,
+				DB1C4D9FC63F5E1BFB83359A /* AppRouter.swift in Sources */,
+				DFBF054F13546A2D7593AF96 /* AppSettings.swift in Sources */,
+				1E7278CE30954637E328ACB6 /* CyrillicAlphabet.swift in Sources */,
+				2DE3391EEF45E893F078D8CB /* MainView.swift in Sources */,
+				9FE1F612784ED4708FA9979E /* Models.swift in Sources */,
+				445DCA801C69CAA879944A0D /* Notifications.swift in Sources */,
+				18D797675FAF45060864815C /* RootView.swift in Sources */,
+				D9CAAD359E4CA6359EEF480C /* RussianWordOfDayApp.swift in Sources */,
+				4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */,
+				EB7395F553CFFB16BFCA1B98 /* WordDetailView.swift in Sources */,
+				AAEB666EF11C04CE80F25955 /* WordOfDayScheduler.swift in Sources */,
+				91363713046B15B648A97D78 /* WordStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		452B7D5BE768945BF9C98807 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = RussianWordOfDayApp/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zackmiller.RussianWordOfDay;
+				PRODUCT_NAME = RussianWordOfDay;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		46A5ADF75A19A38F2C7DAB66 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = KDD2AT7TGH;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8C7F59359D41DB28EF447412 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = RussianWordOfDayApp/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zackmiller.RussianWordOfDay;
+				PRODUCT_NAME = RussianWordOfDay;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EB9EADED050EBCE29B4834AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = KDD2AT7TGH;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DD6B09C450DA5B2D1D34032C /* Build configuration list for PBXNativeTarget "RussianWordOfDay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8C7F59359D41DB28EF447412 /* Debug */,
+				452B7D5BE768945BF9C98807 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		ED92AEB1B485316FE9DC14AD /* Build configuration list for PBXProject "RussianWordOfDay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				46A5ADF75A19A38F2C7DAB66 /* Debug */,
+				EB9EADED050EBCE29B4834AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 695D48DDCACBED72858A0983 /* Project object */;
+}

@@ -1,0 +1,211 @@
+[
+  {
+    "id": "privet",
+    "russian": "привет",
+    "english": "hello",
+    "meaning_en": "A greeting; “hello/hi”.",
+    "phonetic": "pree-VYET"
+  },
+  {
+    "id": "spasibo",
+    "russian": "спасибо",
+    "english": "thank you",
+    "meaning_en": "An expression of gratitude.",
+    "phonetic": "spuh-SEE-buh"
+  },
+  {
+    "id": "da",
+    "russian": "да",
+    "english": "yes",
+    "meaning_en": "Affirmative response; “yes”.",
+    "phonetic": "dah"
+  },
+  {
+    "id": "net",
+    "russian": "нет",
+    "english": "no",
+    "meaning_en": "Negative response; “no”.",
+    "phonetic": "nyet"
+  },
+
+  {
+    "id": "apple",
+    "russian": "яблоко",
+    "english": "apple",
+    "meaning_en": "The edible fruit of the apple tree.",
+    "phonetic": "YAH-bluh-kuh"
+  },
+  {
+    "id": "apply",
+    "russian": "применять",
+    "english": "apply",
+    "meaning_en": "To put something into use or action.",
+    "phonetic": "pree-mee-NYAT"
+  },
+  {
+    "id": "application",
+    "russian": "приложение",
+    "english": "application",
+    "meaning_en": "A formal request, or a software program.",
+    "phonetic": "pree-luh-ZHEH-nee-yeh"
+  },
+  {
+    "id": "appointment",
+    "russian": "встреча",
+    "english": "appointment",
+    "meaning_en": "A scheduled meeting.",
+    "phonetic": "FSTRYEH-chuh"
+  },
+
+  {
+    "id": "banana",
+    "russian": "банан",
+    "english": "banana",
+    "meaning_en": "Long curved yellow tropical fruit.",
+    "phonetic": "buh-NAHN"
+  },
+  {
+    "id": "bank",
+    "russian": "банк",
+    "english": "bank",
+    "meaning_en": "A financial institution.",
+    "phonetic": "bahnk"
+  },
+  {
+    "id": "band",
+    "russian": "группа",
+    "english": "band",
+    "meaning_en": "A group, especially of musicians.",
+    "phonetic": "GROO-puh"
+  },
+  {
+    "id": "banner",
+    "russian": "знамя",
+    "english": "banner",
+    "meaning_en": "A long strip of cloth bearing a slogan or design.",
+    "phonetic": "ZNAH-myuh"
+  },
+
+  {
+    "id": "car",
+    "russian": "машина",
+    "english": "car",
+    "meaning_en": "A road vehicle with an engine.",
+    "phonetic": "muh-SHEE-nuh"
+  },
+  {
+    "id": "card",
+    "russian": "карта",
+    "english": "card",
+    "meaning_en": "A small rectangular piece of stiff material.",
+    "phonetic": "KAR-tuh"
+  },
+  {
+    "id": "care",
+    "russian": "забота",
+    "english": "care",
+    "meaning_en": "The provision of what is needed for someone's welfare.",
+    "phonetic": "zuh-BOH-tuh"
+  },
+  {
+    "id": "carry",
+    "russian": "нести",
+    "english": "carry",
+    "meaning_en": "To support and move from one place to another.",
+    "phonetic": "nees-TEE"
+  },
+
+  {
+    "id": "cat",
+    "russian": "кошка",
+    "english": "cat",
+    "meaning_en": "A small domesticated carnivorous mammal.",
+    "phonetic": "KOSH-kuh"
+  },
+  {
+    "id": "catch",
+    "russian": "ловить",
+    "english": "catch",
+    "meaning_en": "To intercept and hold something in motion.",
+    "phonetic": "luh-VEET"
+  },
+  {
+    "id": "cater",
+    "russian": "обслуживать",
+    "english": "cater",
+    "meaning_en": "To provide food and service for an event.",
+    "phonetic": "ub-SLOO-zhi-vat"
+  },
+  {
+    "id": "category",
+    "russian": "категория",
+    "english": "category",
+    "meaning_en": "A class or division of things sharing a feature.",
+    "phonetic": "kuh-tee-GOH-ree-yuh"
+  },
+
+  {
+    "id": "star",
+    "russian": "звезда",
+    "english": "star",
+    "meaning_en": "A luminous point in the night sky.",
+    "phonetic": "zveez-DAH"
+  },
+  {
+    "id": "start",
+    "russian": "начало",
+    "english": "start",
+    "meaning_en": "The beginning of something.",
+    "phonetic": "nuh-CHAH-luh"
+  },
+  {
+    "id": "state",
+    "russian": "состояние",
+    "english": "state",
+    "meaning_en": "The condition someone or something is in.",
+    "phonetic": "suh-stuh-YAH-nee-yeh"
+  },
+  {
+    "id": "station",
+    "russian": "станция",
+    "english": "station",
+    "meaning_en": "A regular stopping place, especially for trains.",
+    "phonetic": "STAHN-tsi-yuh"
+  },
+
+  {
+    "id": "house",
+    "russian": "дом",
+    "english": "house",
+    "meaning_en": "A building used as a home.",
+    "phonetic": "dohm"
+  },
+  {
+    "id": "water",
+    "russian": "вода",
+    "english": "water",
+    "meaning_en": "The clear liquid that forms rivers, lakes and seas.",
+    "phonetic": "vuh-DAH"
+  },
+  {
+    "id": "food",
+    "russian": "еда",
+    "english": "food",
+    "meaning_en": "Anything eaten for nourishment.",
+    "phonetic": "yee-DAH"
+  },
+  {
+    "id": "friend",
+    "russian": "друг",
+    "english": "friend",
+    "meaning_en": "A person you know well and like.",
+    "phonetic": "drook"
+  },
+  {
+    "id": "book",
+    "russian": "книга",
+    "english": "book",
+    "meaning_en": "A written or printed work of pages.",
+    "phonetic": "KNEE-guh"
+  }
+]
