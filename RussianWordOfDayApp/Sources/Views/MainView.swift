@@ -47,12 +47,6 @@ struct MainView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { searchFieldFocused = false }
-            }
-        }
         .alert("About this app", isPresented: $showAboutAlert) {
             Button("Whatever 🙄", role: .cancel) {}
         } message: {
@@ -169,6 +163,23 @@ struct MainView: View {
                 .onChange(of: searchFieldFocused) { _, _ in refreshDropdown() }
                 .onAppear { refreshDropdown() }
 
+            // Keyboard toolbar (`placement: .keyboard`) does not reliably appear when the
+            // navigation bar toolbar is hidden; keep Done in-app so it shows with results too.
+            if searchFieldFocused {
+                HStack {
+                    Spacer()
+                    Button("Done") {
+                        searchFieldFocused = false
+                    }
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 4)
+                }
+                .frame(maxWidth: 460)
+                .accessibilityIdentifier("search-keyboard-done")
+                .accessibilityLabel("Dismiss keyboard")
+            }
+
             if !results.isEmpty {
                 resultsDropdown
             }
@@ -192,53 +203,60 @@ struct MainView: View {
     }
 
     private var resultsDropdown: some View {
-        VStack(spacing: 0) {
-            if showingRecents {
-                HStack {
-                    Text("Recently viewed")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-                Divider()
-            }
-
-            ForEach(results) { entry in
-                Button {
-                    router.path.append(.wordDetail(id: entry.id))
-                    query = ""
-                    results = []
-                    showingRecents = false
-                } label: {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.russian)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            Text(entry.english)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
+        ScrollView {
+            VStack(spacing: 0) {
+                if showingRecents {
+                    HStack {
+                        Text("Recently viewed")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color(.systemGray3))
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if entry.id != results.last?.id {
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
                     Divider()
                 }
+
+                ForEach(results) { entry in
+                    Button {
+                        router.path.append(.wordDetail(id: entry.id))
+                        query = ""
+                        results = []
+                        showingRecents = false
+                    } label: {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.russian)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text(entry.english)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Color(.systemGray3))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if entry.id != results.last?.id {
+                        Divider()
+                    }
+                }
+
+                Color.clear.frame(height: 72)
+                    .allowsHitTesting(false)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollIndicators(.hidden)
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(Color(uiColor: .systemBackground))
@@ -247,6 +265,7 @@ struct MainView: View {
                         .stroke(Color(.systemGray4), lineWidth: 1)
                 )
         )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
         .frame(maxWidth: 460)
         .frame(maxHeight: 320)
