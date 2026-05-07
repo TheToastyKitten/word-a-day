@@ -16,6 +16,26 @@ final class WordStore: ObservableObject {
     private let bundledDictionaryName = "dictionary"
     private let bundledDictionaryExtension = "sqlite"
 
+    private static let enrichmentSourceYandex = "yandex_ruen_v4"
+
+    // NOTE: This is embedded in the app binary and can be extracted.
+    // Use only for personal builds / small betas.
+    private static let bakedYandexDictionaryAPIKey =
+        "dict.1.1.20260507T211145Z.dcce4f2d5fec4778.d72deadabead921e1c97e2e886028ac8d7f86de8"
+
+    // Keep the app simpler for beginners by limiting content to core POS.
+    private static let allowedPOS: [String] = [
+        "noun",
+        "verb",
+        "adj",
+        "adjective",
+        "adv",
+        "adverb",
+    ]
+
+    private static let allowedPOSClause: String =
+        "AND (w.pos IS NOT NULL AND lower(trim(w.pos)) IN (\(allowedPOS.map { _ in "?" }.joined(separator: ", "))))"
+
     deinit {
         if let db {
             sqlite3_close(db)
@@ -28,13 +48,14 @@ final class WordStore: ObservableObject {
             try openOrCreateDatabase()
             try migrateBundledDictionaryIfNeeded()
             try createSchemaIfNeeded()
+            try applyKnownDictionaryFixesIfNeeded()
             isReady = true
         } catch {
             isReady = false
         }
     }
 
-    func search(query raw: String, limit: Int = 5) -> [WordEntry] {
+    func search(query raw: String, limit: Int = 10, posFilters: [String] = []) -> [WordEntry] {
         guard let db else { return [] }
         let q = normalizeForIndex(raw)
         guard !q.isEmpty else { return [] }
@@ -51,11 +72,21 @@ final class WordStore: ObservableObject {
         guard !tokens.isEmpty else { return [] }
         let ftsQuery = tokens.map { "\"\($0)\"*" }.joined(separator: " ")
 
+        let pos = posFilters
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        let posClause = pos.isEmpty
+            ? ""
+            : "AND lower(trim(w.pos)) IN (\(Array(repeating: "?", count: pos.count).joined(separator: ", ")))"
+
         let sql = """
-        SELECT w.id, w.ru, w.en, w.meaning_en, w.phonetic
+        SELECT w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic
         FROM words_fts f
         JOIN words w ON w.id = f.id
         WHERE words_fts MATCH ?
+        \(Self.allowedPOSClause)
+        \(posClause)
         ORDER BY bm25(words_fts)
         LIMIT ?;
         """
@@ -65,7 +96,16 @@ final class WordStore: ObservableObject {
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_text(stmt, 1, ftsQuery, -1, SQLITE_TRANSIENT_SWIFT)
-        sqlite3_bind_int(stmt, 2, Int32(limit))
+        var bindIndex: Int32 = 2
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        for p in pos {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
 
         var out: [WordEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -76,13 +116,127 @@ final class WordStore: ObservableObject {
 
     func getWord(id: String) -> WordEntry? {
         guard let db else { return nil }
-        let sql = "SELECT id, ru, en, meaning_en, phonetic FROM words WHERE id = ? LIMIT 1;"
+        let sql = "SELECT id, ru, en, meaning_en, pos, glosses_en, ai_note_en, phonetic FROM words WHERE id = ? LIMIT 1;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT_SWIFT)
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         return rowToWord(stmt)
+    }
+
+    /// Best-effort lookup for a Russian headword (exact match on normalized `ru_norm`).
+    func findWordID(russianHeadword raw: String) -> String? {
+        guard let db else { return nil }
+        let norm = normalizeForIndex(raw)
+        guard !norm.isEmpty else { return nil }
+        let sql = """
+        SELECT id
+        FROM words w
+        WHERE w.ru_norm = ?
+        \(Self.allowedPOSClause)
+        LIMIT 1;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, norm, -1, SQLITE_TRANSIENT_SWIFT)
+        var bindIndex: Int32 = 2
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return String(cString: sqlite3_column_text(stmt, 0))
+    }
+
+    // MARK: - Optional online enrichment (cached locally)
+
+    func getEnrichment(id wordID: String) -> WordEnrichment? {
+        guard let db else { return nil }
+        let sql = """
+        SELECT source, fetched_at, definitions, examples, source_url
+        FROM word_enrichment
+        WHERE word_id = ?
+        LIMIT 1;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+
+        let source = String(cString: sqlite3_column_text(stmt, 0))
+        let fetchedAt = Date(timeIntervalSince1970: TimeInterval(sqlite3_column_int64(stmt, 1)))
+        let defsBlob = sqlite3_column_text(stmt, 2).map { String(cString: $0) } ?? ""
+        let exBlob = sqlite3_column_text(stmt, 3).map { String(cString: $0) } ?? ""
+        let urlStr = sqlite3_column_text(stmt, 4).map { String(cString: $0) }
+
+        let defs = defsBlob.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        let ex = exBlob.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        let url = urlStr.flatMap(URL.init(string:))
+
+        return WordEnrichment(
+            id: wordID,
+            source: source,
+            fetchedAt: fetchedAt,
+            definitions: defs,
+            examples: ex,
+            sourceURL: url
+        )
+    }
+
+    /// Best-effort fetch. Safe to call repeatedly; it only skips when we already
+    /// have non-empty cached definitions.
+    func fetchEnrichmentIfNeeded(id wordID: String) async {
+        guard let word = getWord(id: wordID) else { return }
+
+        // Yandex-only: if no key is set, enrichment is disabled.
+        guard let key = readYandexKey() else { return }
+
+        if let existing = getEnrichment(id: wordID), !existing.definitions.isEmpty {
+            // If the cache only contains the headline translation (which the UI may
+            // de-duplicate against the gray subtitle), treat it as effectively empty
+            // and re-fetch so we can populate non-duplicate meaning lines.
+            let headline = word.english.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let defs = existing.definitions
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+            let onlyHeadline = !headline.isEmpty && !defs.isEmpty && defs.allSatisfy { $0 == headline }
+            // Also refresh older cache formats when we change enrichment heuristics/provider.
+            let currentSource = Self.enrichmentSourceYandex
+            if existing.source != currentSource {
+                // fallthrough to refetch
+            } else if !onlyHeadline {
+                return
+            }
+        }
+
+        do {
+            let payload = try await YandexDictionaryClient.fetchRussianEnrichment(
+                apiKey: key,
+                headword: word.russian,
+                preferredPartOfSpeech: word.pos
+            )
+            storeEnrichment(
+                wordID: wordID,
+                source: Self.enrichmentSourceYandex,
+                fetchedAt: Date(),
+                definitions: payload.definitions,
+                examples: payload.examples,
+                sourceURL: payload.sourceURL
+            )
+        } catch {
+            // Silent by design: enrichment is optional and should never block the UX.
+        }
+    }
+
+    private func readYandexKey() -> String? {
+        let s = UserDefaults.standard.string(forKey: "yandex_dictionary_api_key")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !s.isEmpty { return s }
+        let baked = Self.bakedYandexDictionaryAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return baked.isEmpty ? nil : baked
     }
 
     /// Wipes every "this word is taken" piece of state:
@@ -107,11 +261,17 @@ final class WordStore: ObservableObject {
         LEFT JOIN scheduled_pushes s ON s.word_id = w.id
         WHERE u.word_id IS NULL
           AND s.word_id IS NULL
+          \(Self.allowedPOSClause)
           AND w.is_common = 1;
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
         defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
         return Int(sqlite3_column_int(stmt, 0))
     }
@@ -134,17 +294,24 @@ final class WordStore: ObservableObject {
     func usedWords(limit: Int = 200, offset: Int = 0) -> [UsedWord] {
         guard let db else { return [] }
         let sql = """
-        SELECT u.word_id, u.used_at, w.ru, w.en, w.meaning_en, w.phonetic
+        SELECT u.word_id, u.used_at, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic
         FROM used_words u
         JOIN words w ON w.id = u.word_id
+        WHERE 1 = 1
+        \(Self.allowedPOSClause)
         ORDER BY u.used_at DESC
         LIMIT ? OFFSET ?;
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_int(stmt, 1, Int32(limit))
-        sqlite3_bind_int(stmt, 2, Int32(offset))
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
+        sqlite3_bind_int(stmt, bindIndex + 1, Int32(offset))
 
         var out: [UsedWord] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -153,12 +320,18 @@ final class WordStore: ObservableObject {
             let ru = String(cString: sqlite3_column_text(stmt, 2))
             let en = String(cString: sqlite3_column_text(stmt, 3))
             let meaning = sqlite3_column_text(stmt, 4).map { String(cString: $0) }
-            let phonetic = sqlite3_column_text(stmt, 5).map { String(cString: $0) }
+            let pos = sqlite3_column_text(stmt, 5).map { String(cString: $0) }
+            let glosses = sqlite3_column_text(stmt, 6).map { String(cString: $0) }
+            let aiNote = sqlite3_column_text(stmt, 7).map { String(cString: $0) }
+            let phonetic = sqlite3_column_text(stmt, 8).map { String(cString: $0) }
             let word = WordEntry(
                 id: id,
                 russian: ru,
                 english: en,
                 meaning_en: (meaning?.isEmpty == false) ? meaning : nil,
+                pos: (pos?.isEmpty == false) ? pos : nil,
+                glosses_en: (glosses?.isEmpty == false) ? glosses : nil,
+                ai_note_en: (aiNote?.isEmpty == false) ? aiNote : nil,
                 phonetic: (phonetic?.isEmpty == false) ? phonetic : nil
             )
             out.append(UsedWord(word: word, usedAt: usedAt))
@@ -265,19 +438,40 @@ final class WordStore: ObservableObject {
     /// Returns the most recently viewed words, newest first, joined with
     /// their display fields. Words whose underlying row has been deleted are
     /// silently skipped via the join.
-    func recentViews(limit: Int = 5) -> [WordEntry] {
+    func recentViews(limit: Int = 10, posFilters: [String] = []) -> [WordEntry] {
         guard let db else { return [] }
+
+        let pos = posFilters
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        let posClause = pos.isEmpty
+            ? ""
+            : "AND lower(trim(w.pos)) IN (\(Array(repeating: "?", count: pos.count).joined(separator: ", ")))"
+
         let sql = """
-        SELECT w.id, w.ru, w.en, w.meaning_en, w.phonetic
+        SELECT w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic
         FROM recent_views r
         JOIN words w ON w.id = r.word_id
+        WHERE 1 = 1
+        \(Self.allowedPOSClause)
+        \(posClause)
         ORDER BY r.viewed_at DESC
         LIMIT ?;
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_int(stmt, 1, Int32(limit))
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        for p in pos {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
 
         var out: [WordEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -440,12 +634,13 @@ final class WordStore: ObservableObject {
     private func pickRandomUnusedLocked() -> WordEntry? {
         guard let db else { return nil }
         let sql = """
-        SELECT w.id, w.ru, w.en, w.meaning_en, w.phonetic
+        SELECT w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic
         FROM words w
         LEFT JOIN used_words u       ON u.word_id = w.id
         LEFT JOIN scheduled_pushes s ON s.word_id = w.id
         WHERE u.word_id IS NULL
           AND s.word_id IS NULL
+          \(Self.allowedPOSClause)
           AND w.is_common = 1
         ORDER BY RANDOM()
         LIMIT 1;
@@ -453,6 +648,11 @@ final class WordStore: ObservableObject {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         return rowToWord(stmt)
     }
@@ -529,6 +729,9 @@ final class WordStore: ObservableObject {
           ru         TEXT NOT NULL,
           en         TEXT NOT NULL,
           meaning_en TEXT,
+          pos        TEXT,
+          glosses_en TEXT,
+          ai_note_en TEXT,
           phonetic   TEXT,
           ru_norm    TEXT NOT NULL DEFAULT '',
           en_norm    TEXT NOT NULL DEFAULT '',
@@ -589,6 +792,18 @@ final class WordStore: ObservableObject {
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_recent_views_viewed_at ON recent_views(viewed_at DESC);")
 
+        try exec("""
+        CREATE TABLE IF NOT EXISTS word_enrichment(
+          word_id    TEXT PRIMARY KEY,
+          source     TEXT NOT NULL,
+          fetched_at INTEGER NOT NULL,
+          definitions TEXT NOT NULL DEFAULT '',
+          examples    TEXT NOT NULL DEFAULT '',
+          source_url  TEXT,
+          FOREIGN KEY(word_id) REFERENCES words(id) ON DELETE CASCADE
+        );
+        """)
+
         // Keep words_fts in sync with words (insert/update/delete).
         // Drop+recreate so we can iterate on the trigger body across versions.
         _ = sqlite3_exec(db, "DROP TRIGGER IF EXISTS words_ai;", nil, nil, nil)
@@ -627,6 +842,43 @@ final class WordStore: ObservableObject {
         DELETE FROM used_words
         WHERE word_id IN (SELECT word_id FROM scheduled_pushes);
         """)
+    }
+
+    private func applyKnownDictionaryFixesIfNeeded() throws {
+        guard let db else { return }
+
+        // Fix: bundled dictionary currently contains `помочь` as a noun ("belt"),
+        // but for our app we want the common verb sense ("to help").
+        // Apply as an in-place correction in the user's sandbox DB so we don't
+        // require a full dictionary rebuild to resolve obvious mistakes.
+        let ruNorm = normalizeForIndex("помочь")
+        let desiredEn = "to help"
+        let desiredPos = "verb"
+        let desiredEnNorm = normalizeForIndex(desiredEn)
+        let desiredMeaning = "to help"
+        let desiredGlosses = "to help\nhelp\nassist"
+
+        let sql = """
+        UPDATE words
+        SET en = ?, pos = ?, en_norm = ?, meaning_en = ?, glosses_en = ?
+        WHERE ru_norm = ?
+          AND (pos IS NULL OR lower(trim(pos)) = 'noun')
+          AND lower(trim(en)) = 'belt';
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, desiredEn, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 2, desiredPos, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 3, desiredEnNorm, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 4, desiredMeaning, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 5, desiredGlosses, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 6, ruNorm, -1, SQLITE_TRANSIENT_SWIFT)
+        _ = sqlite3_step(stmt)
+
+        // If we changed the underlying word, drop cached enrichment so it
+        // re-fetches under the correct POS heuristics.
+        _ = sqlite3_exec(db, "DELETE FROM word_enrichment WHERE word_id = 'pomoch';", nil, nil, nil)
     }
 
     /// On a fresh install (no `words.sqlite` in App Support) copies the bundled
@@ -669,14 +921,14 @@ final class WordStore: ObservableObject {
     }
 
     /// Reads the user's `dictionary_version`; if the table is missing or the
-    /// value is older than what the bundled DB ships with (2), swaps the
+    /// value is older than what the bundled DB ships with (12), swaps the
     /// dictionary tables in a single transaction while preserving user-state
     /// tables (`used_words`, `scheduled_pushes`, `recent_views`).
     private func migrateBundledDictionaryIfNeeded() throws {
         guard let db else { return }
 
         let currentVersion = readDictionaryVersion()
-        let targetVersion: Int = 3
+        let targetVersion: Int = 12
         if currentVersion >= targetVersion {
             return
         }
@@ -729,6 +981,9 @@ final class WordStore: ObservableObject {
           ru         TEXT NOT NULL,
           en         TEXT NOT NULL,
           meaning_en TEXT,
+          pos        TEXT,
+          glosses_en TEXT,
+          ai_note_en TEXT,
           phonetic   TEXT,
           ru_norm    TEXT NOT NULL DEFAULT '',
           en_norm    TEXT NOT NULL DEFAULT '',
@@ -737,9 +992,9 @@ final class WordStore: ObservableObject {
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_words_is_common ON words(is_common) WHERE is_common = 1;")
         try exec("""
-        INSERT INTO words(id, ru, en, meaning_en, phonetic,
+        INSERT INTO words(id, ru, en, meaning_en, pos, glosses_en, ai_note_en, phonetic,
                           ru_norm, en_norm, is_common)
-        SELECT id, ru, en, meaning_en, phonetic,
+        SELECT id, ru, en, meaning_en, pos, glosses_en, ai_note_en, phonetic,
                ru_norm, en_norm, is_common
         FROM bundled.words;
         """)
@@ -808,6 +1063,7 @@ final class WordStore: ObservableObject {
     private func normalizeForIndex(_ s: String) -> String {
         s.lowercased()
             .replacingOccurrences(of: "ё", with: "е")
+            .replacingOccurrences(of: "\u{0301}", with: "") // combining acute (stress mark)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -840,13 +1096,51 @@ final class WordStore: ObservableObject {
         let ru = colText(1)
         let en = colText(2)
         let meaning = colText(3)
-        let phon = colText(4)
+        let pos = colText(4)
+        let glosses = colText(5)
+        let aiNote = colText(6)
+        let phon = colText(7)
         return WordEntry(
             id: id,
             russian: ru,
             english: en,
             meaning_en: meaning.isEmpty ? nil : meaning,
+            pos: pos.isEmpty ? nil : pos,
+            glosses_en: glosses.isEmpty ? nil : glosses,
+            ai_note_en: aiNote.isEmpty ? nil : aiNote,
             phonetic: phon.isEmpty ? nil : phon
         )
+    }
+
+    private func storeEnrichment(
+        wordID: String,
+        source: String,
+        fetchedAt: Date,
+        definitions: [String],
+        examples: [String],
+        sourceURL: URL?
+    ) {
+        guard let db else { return }
+        let defs = definitions.joined(separator: "\n")
+        let ex = examples.joined(separator: "\n")
+        let sql = """
+        INSERT OR REPLACE INTO word_enrichment(word_id, source, fetched_at, definitions, examples, source_url)
+        VALUES(?, ?, ?, ?, ?, ?);
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 2, source, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_int64(stmt, 3, Int64(fetchedAt.timeIntervalSince1970))
+        sqlite3_bind_text(stmt, 4, defs, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 5, ex, -1, SQLITE_TRANSIENT_SWIFT)
+        if let s = sourceURL?.absoluteString {
+            sqlite3_bind_text(stmt, 6, s, -1, SQLITE_TRANSIENT_SWIFT)
+        } else {
+            sqlite3_bind_null(stmt, 6)
+        }
+        _ = sqlite3_step(stmt)
     }
 }

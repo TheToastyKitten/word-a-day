@@ -3,6 +3,10 @@
 Build RussianWordOfDayApp/Resources/dictionary.sqlite from a Kaikki Russian
 dump and a CC-BY frequency list. Bundled with the app and copied into the
 user's sandbox on first launch by WordStore.installBundledDictionaryIfMissing().
+Lexical merges keep **nouns, verbs, adjectives, adverbs**, and cardinal **numerals**
+(`num`). Function words (pronouns, particles, determiners, prepositions, …) are
+omitted. **WordStore** search and daily-word SQL still allow only **noun/verb/adj/adv**,
+so numerals are used for the Numbers screen and direct lookups, not beginner search filters.
 
 Usage:
     python3 scripts/build_seed_db.py \
@@ -11,9 +15,15 @@ Usage:
         [--common-limit 5000] \
         [--out RussianWordOfDayApp/Resources/dictionary.sqlite]
 
-Aborts non-zero if fewer than 80,000 entries land — that's the floor below
-which we'd ship a noticeably-thin dictionary that doesn't justify the
-prebuilt-DB cost.
+Refresh POS / gloss choices for every lemma row in an existing DB (needs the
+Kaikki dump locally; avoids a full freq rebuild):
+
+    python3 scripts/build_seed_db.py \
+        --kaikki <kaikki.org-dictionary-Russian.jsonl> \
+        --refresh-sqlite RussianWordOfDayApp/Resources/dictionary.sqlite
+
+Aborts non-zero if fewer than 25,000 entries land (--min-entries overrides),
+below typical coverage for learner search filters.
 """
 from __future__ import annotations
 
@@ -23,15 +33,246 @@ import re
 import sqlite3
 import sys
 import unicodedata
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Iterator, Optional
 
-CYRILLIC_RE = re.compile(r"^[\u0400-\u04FF\-]+$")
+CYRILLIC_RE = re.compile(r"^[\u0400-\u04FF]+$")
 GLOSS_PARENS_RE = re.compile(r"\s*\([^)]*\)")
 MAX_GLOSS_LEN = 60
 MAX_MEANING_LEN = 200
-DICTIONARY_VERSION = 3
-MIN_ENTRIES = 30_000
+MAX_GLOSSES = 5
+MEANING_GLOSSES_LIMIT = 4
+DICTIONARY_VERSION = 12
+# Floors lowered vs old unrestricted builds (~30k+): lexical POS excludes
+# function-word lemmas Kaikki tags as particle/prep/det/pron/… .
+MIN_ENTRIES = 25_000
+
+# Allowed Kaikki `pos` values for rows that may enter lemma merge (must agree
+# with WordStore.allowedPOS synonym spellings).
+LEXICAL_BUILD_POS: frozenset[str] = frozenset(
+    ("noun", "verb", "adj", "adjective", "adv", "adverb", "num")
+)
+
+# English substrings in the *first* lexical gloss for “this headword is chiefly
+# a place / administrative region”, so we do not drop mixed entries like
+# Pushkin (person) that only mention a town in a secondary sense.
+GEO_GLOSS_RE = re.compile(
+    r"(?is)\b("
+    r"a country|an archipelago|insular state|federal city|capital city|capital of|"
+    r"principal city|census-designated place|municipal town|town in|city in|city of|"
+    r"province of|territorial entity|district of|borough of|national park|prefecture|"
+    r"County,|County in|County of|census area|canton of|department of France|"
+    r"borough of|historic county|historic region|historic territory|"
+    r"Atlantic Ocean|Pacific Ocean|Indian Ocean|Arctic Ocean|Southern Ocean|Oceania|"
+    r"United States|Russian Federation|Soviet Union|United Kingdom|\bUSA\b|"
+    r"North America|South America|Central America|Western Europe|Eastern Europe|"
+    r"located primarily|geographic region|archipelago\b|\bislands?\b|\binsular\b|"
+    r"\bcontinent\b|River in|river in|Mountain range|"
+    r"States of the United States|\bU\.S\. state\b"
+    r")\b"
+)
+
+GEO_TOPIC_MARKERS = (
+    # Only unambiguous category/topic substrings (Kaikki mirrors Wiktionary).
+    # Avoid bare "capital ", "state ", etc.: they match maintenance categories.
+    "places in ",
+    "places of ",
+    "states of the united",
+    "islands of ",
+    "archipelag",
+    "countries in ",
+    "cities in ",
+    "towns in ",
+    "villages in ",
+    "districts of ",
+    "provinces of ",
+    "regions of ",
+    "subdivisions of ",
+    "administrative divisions",
+    " national park",
+)
+
+# Cyrillic lemmas containing these contiguous substrings are treated as tied to a
+# foreign toponym (e.g. лондонский). Use only distinctive stems (avoid short
+# stems like «рим», which hits unrelated words).
+TOPONYM_LEMMA_SUBSTRINGS = frozenset({
+    "лондон",
+    "париж",
+    "берлин",
+    "вашингтон",
+    "гаваи",
+    "гавай",
+    "токио",
+    "пекин",
+    "шанхай",
+})
+
+# Lowercased English headword tokens (first token of the learner gloss).
+# Matches relational adjectives: «*-ский » demonyms glossed “London”, “Paris”, etc.
+EN_SOLO_TOPONYM_HEADWORDS = frozenset({
+    "london",
+    "paris",
+    "berlin",
+    "moscow",
+    "moskva",
+    "washington",
+    "hawaii",
+    "hawaiian",
+    "tokyo",
+    "beijing",
+    "peking",
+    "rome",
+    "madrid",
+    "vienna",
+    "warsaw",
+    "prague",
+    "budapest",
+    "istanbul",
+    "cairo",
+    "dublin",
+    "amsterdam",
+    "brussels",
+    "copenhagen",
+    "stockholm",
+    "oslo",
+    "helsinki",
+    "warszawa",
+    "venice",
+    "milan",
+    "florence",
+    "naples",
+    "sydney",
+    "melbourne",
+    "toronto",
+    "vancouver",
+    "montreal",
+    "chicago",
+    "boston",
+    "miami",
+    "atlanta",
+    "seattle",
+    "dallas",
+    "denver",
+    "phoenix",
+    "detroit",
+    "houston",
+    "philadelphia",
+    "california",
+    "florida",
+    "texas",
+    "colorado",
+    "arizona",
+    "virginia",
+    "georgia",
+    "indiana",
+    "kentucky",
+    "oregon",
+    "oklahoma",
+    "alabama",
+    "alaska",
+    "utah",
+    "kansas",
+    "iowa",
+    "canada",
+    "australia",
+    "mexico",
+    "brazil",
+    "argentina",
+    "chile",
+    "peru",
+    "colombia",
+    "venezuela",
+    "cuba",
+    "jamaica",
+    "india",
+    "pakistan",
+    "bangladesh",
+    "thailand",
+    "vietnam",
+    "indonesia",
+    "philippines",
+    "malaysia",
+    "singapore",
+    "portugal",
+    "greece",
+    "poland",
+    "ukraine",
+    "kyiv",
+    "kiev",
+    "minsk",
+    "riga",
+    "tallinn",
+    "vilnius",
+    "bucharest",
+    "sofia",
+    "zagreb",
+    "belgrade",
+})
+
+# Lemma ends with relational placename adjectives (-ский paradigm).
+RU_TOPONYMIC_ADJ_SUFFIX_RE = re.compile(
+    r"(?iu)(скими|ским|ские|ская|ских|ское|ский|ской|скому|ском|скую|ского)$"
+)
+
+NAME_TOPIC_MARKERS = (
+    "given names",
+    "male given names",
+    "female given names",
+    "surnames",
+    "patronymics",
+    "hypocoristics",
+    "nicknames",
+    "personal names",
+)
+
+PERSON_NAME_GLOSS_RE = re.compile(
+    r"(?is)"
+    r"(?:\bgiven\s+name\b|\bforename\b|\bsurname\b|\bfamily\s+name\b|\bpatronymic\b|"
+    r"\bmale\s+given\s+name\b|\bfemale\s+given\s+name\b|"
+    r"\bhypocoristic\b|\bnickname\b|"
+    r"\bromanization\s+of\s+the\s+name\b|"
+    r"a\s+transliteration\b[^\n]{0,96}\bgiven\s+name\b|"
+    r"\btransliteration\b[^\n]{0,96}\bgiven\s+name\b)"
+)
+
+# Morph-style definitions suppressed for learner-visible gloss selection.
+HARD_GRAMMAR_GLOSS_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"(?is)^(.*\b)?("
+        r"past\b.*\bparticiple|present\b.*\bparticiple|"
+        r"perfective\b.*\bparticiple|"
+        r"past passive|past active|adverbial participle"
+        r")\s+.*\bof\b"
+    ),
+    re.compile(r"(?is)\b(?:imperfective|perfective)?\s*adverbial\s+participle\s+of\b"),
+    re.compile(r"(?is)\bparticiple\s+.*\bof\b"),
+    re.compile(r"(?is)\bgerund\s+.*\bof\b"),
+    re.compile(r"(?is)\bsupine\s+.*\bof\b"),
+    re.compile(r"(?is)\binfinitive\s+.*\bof\b"),
+    re.compile(r"(?is)\bverbal noun\s+.*\bof\b"),
+    re.compile(r"(?is)\bimperative\b.*\bof\b"),
+    re.compile(r"(?is)^(\s*)Romanization\b"),
+)
+
+# Alternate label without trailing meaning (“: gloss”) stripped for senses.
+ALT_FORM_WITHOUT_MEANING_RE = re.compile(
+    r"(?is)^alternative\s+(form|spelling)\s+of\b[^:]*$"
+)
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def is_hard_morph_gloss(text: str) -> bool:
+    if not text:
+        return True
+    if ALT_FORM_WITHOUT_MEANING_RE.match(text.strip()):
+        return True
+    for rx in HARD_GRAMMAR_GLOSS_RES:
+        if rx.search(text):
+            return True
+    return False
+
 
 # Russian vowels (lowercase comparison).
 VOWELS = frozenset("аеёиоуыэюя")
@@ -75,6 +316,9 @@ CREATE TABLE words(
   ru         TEXT NOT NULL,
   en         TEXT NOT NULL,
   meaning_en TEXT,
+  pos        TEXT,
+  glosses_en TEXT,
+  ai_note_en TEXT,
   phonetic   TEXT,
   ru_norm    TEXT NOT NULL DEFAULT '',
   en_norm    TEXT NOT NULL DEFAULT '',
@@ -91,6 +335,33 @@ CREATE VIRTUAL TABLE words_fts USING fts5(
 
 CREATE TABLE dictionary_version(value INTEGER NOT NULL);
 """
+
+
+def unique_glosses(senses: list, limit: int) -> list[str]:
+    """Collect unique learner-facing English glosses across senses."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for g in iter_lexical_gloss_texts(senses):
+        s = g.strip()
+        if not s:
+            continue
+        if s in seen:
+            continue
+        seen.add(s)
+        out.append(s)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def make_meaning_description(glosses: list[str]) -> Optional[str]:
+    """Readable longer meaning string from multiple glosses."""
+    if not glosses:
+        return None
+    joined = "; ".join(glosses[:MEANING_GLOSSES_LIMIT])
+    if len(joined) > MAX_MEANING_LEN:
+        joined = joined[: MAX_MEANING_LEN - 1].rstrip() + "…"
+    return joined
 
 
 def slugify(russian: str, used: set[str]) -> str:
@@ -116,7 +387,165 @@ def normalize_for_index(s: str) -> str:
 def is_clean_lemma(s: str) -> bool:
     if not s or " " in s:
         return False
+    # Single-token lemmas only — drop hyphenated onomatopoeia / scraps (ха-ха, etc.).
+    if "-" in s:
+        return False
     return bool(CYRILLIC_RE.match(s))
+
+
+def load_geo_blocklist(path: Path) -> frozenset[str]:
+    if not path.exists():
+        return frozenset()
+    out: set[str] = set()
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            out.add(normalize_lemma(line))
+    return frozenset(out)
+
+
+def strip_gloss_fragment(gloss: str) -> str:
+    text = GLOSS_PARENS_RE.sub("", gloss).strip()
+    text = re.split(r"[;,]", text, maxsplit=1)[0].strip()
+    return text
+
+
+def sense_has_nonempty_form_of(sense: dict) -> bool:
+    fo = sense.get("form_of")
+    if not fo:
+        return False
+    if isinstance(fo, list):
+        return any(isinstance(it, dict) and it.get("word") for it in fo)
+    if isinstance(fo, dict):
+        return bool(fo.get("word"))
+    return False
+
+
+def gloss_learner_text(gloss: str, sense: dict) -> Optional[str]:
+    """Pick an English gloss for learners: hide participle-only lines, but keep
+    short definitions even when Wiktionary marks a sense as form-of (often
+    without a `:` tail)."""
+    if not isinstance(gloss, str) or not gloss.strip():
+        return None
+    has_fo = sense_has_nonempty_form_of(sense)
+
+    colon_idx = gloss.find(":")
+    if has_fo and colon_idx >= 0:
+        tail = strip_gloss_fragment(gloss[colon_idx + 1 :])
+        if tail and not is_hard_morph_gloss(tail):
+            return tail
+
+    full = strip_gloss_fragment(gloss)
+    if not full or is_hard_morph_gloss(full):
+        return None
+    return full
+
+
+def iter_lexical_gloss_texts(senses: list) -> Iterator[str]:
+    for sense in senses or []:
+        for gloss in sense.get("glosses", []) or []:
+            t = gloss_learner_text(gloss, sense)
+            if t:
+                yield t
+
+
+def has_any_lexical_gloss(senses: list) -> bool:
+    return any(iter_lexical_gloss_texts(senses))
+
+
+def first_english_topo_headword(gloss: str) -> str:
+    """First surface token of a gloss, for matching bare English placenames."""
+    if not gloss or not gloss.strip():
+        return ""
+    frag = strip_gloss_fragment(gloss).strip()
+    if not frag:
+        return ""
+    part = re.split(r"[\s,;(]", frag, maxsplit=1)[0]
+    return part.strip().strip('"').strip("'").rstrip(".:-–—").lower()
+
+
+def topic_string_matches_geo(s: str) -> bool:
+    sl = s.lower()
+    return any(marker in sl for marker in GEO_TOPIC_MARKERS)
+
+
+def entry_has_geo_topic(obj: dict) -> bool:
+    for t in obj.get("topics") or []:
+        if isinstance(t, str) and topic_string_matches_geo(t):
+            return True
+    for sense in obj.get("senses") or []:
+        for t in sense.get("topics") or []:
+            if isinstance(t, str) and topic_string_matches_geo(t):
+                return True
+        for cat in sense.get("categories") or []:
+            if isinstance(cat, dict):
+                nm = cat.get("name")
+                if isinstance(nm, str) and topic_string_matches_geo(nm):
+                    return True
+            elif isinstance(cat, str) and topic_string_matches_geo(cat):
+                return True
+    return False
+
+
+def should_exclude_place_entry(
+    obj: dict, lemma_norm: str, geo_lemmas: frozenset[str]
+) -> bool:
+    if lemma_norm in geo_lemmas:
+        return True
+    if any(stem in lemma_norm for stem in TOPONYM_LEMMA_SUBSTRINGS):
+        return True
+    senses = obj.get("senses") or []
+    if not has_any_lexical_gloss(senses):
+        return False
+    if entry_has_geo_topic(obj):
+        return True
+    first_lex = next(iter_lexical_gloss_texts(senses), None)
+    if first_lex:
+        if GEO_GLOSS_RE.search(first_lex):
+            return True
+        head = first_english_topo_headword(first_lex)
+        if (
+            head in EN_SOLO_TOPONYM_HEADWORDS
+            and RU_TOPONYMIC_ADJ_SUFFIX_RE.search(lemma_norm)
+        ):
+            return True
+    return False
+
+
+def topic_string_matches_person_name_cat(s: str) -> bool:
+    sl = s.lower()
+    return any(marker in sl for marker in NAME_TOPIC_MARKERS)
+
+
+def entry_has_person_name_category(obj: dict) -> bool:
+    for t in obj.get("topics") or []:
+        if isinstance(t, str) and topic_string_matches_person_name_cat(t):
+            return True
+    for sense in obj.get("senses") or []:
+        for t in sense.get("topics") or []:
+            if isinstance(t, str) and topic_string_matches_person_name_cat(t):
+                return True
+        for cat in sense.get("categories") or []:
+            if isinstance(cat, dict):
+                nm = cat.get("name")
+                if isinstance(nm, str) and topic_string_matches_person_name_cat(nm):
+                    return True
+            elif isinstance(cat, str) and topic_string_matches_person_name_cat(cat):
+                return True
+    return False
+
+
+def should_exclude_person_name_entry(obj: dict, first_lex: Optional[str]) -> bool:
+    pos = (obj.get("pos") or "").strip().lower()
+    if pos == "name":
+        return True
+    if entry_has_person_name_category(obj):
+        return True
+    if first_lex and PERSON_NAME_GLOSS_RE.search(first_lex):
+        return True
+    return False
 
 
 def read_frequency(path: Path) -> list[str]:
@@ -145,19 +574,6 @@ def stream_kaikki(path: Path) -> Iterator[dict]:
                 yield json.loads(line)
             except json.JSONDecodeError:
                 continue
-
-
-def first_gloss(senses: list, max_len: int) -> Optional[str]:
-    for sense in senses or []:
-        for gloss in sense.get("glosses", []) or []:
-            text = GLOSS_PARENS_RE.sub("", gloss).strip()
-            text = re.split(r"[;,]", text, maxsplit=1)[0].strip()
-            if not text:
-                continue
-            if len(text) > max_len:
-                text = text[: max_len - 1].rstrip() + "…"
-            return text
-    return None
 
 
 def first_ipa(sounds: list) -> Optional[str]:
@@ -389,6 +805,163 @@ def pronunciation_for_entry(
     return first_ipa(sounds)
 
 
+def kaikki_row_rank(obj: dict) -> int:
+    """Prefer dictionary-style POS rows when Kaikki repeats the same surface."""
+    score = 0
+    for t in obj.get("head_templates") or []:
+        if not isinstance(t, dict):
+            continue
+        blob = f"{t.get('name', '')} {t.get('expansion', '')}"
+        bl = blob.lower()
+        if "past passive participle" in bl:
+            score -= 60_000
+        if "participle" in bl and ("verb form" in bl or "head" in bl):
+            score -= 40_000
+        if "verb form" in bl:
+            score -= 12_000
+        if "adjective form" in bl:
+            score -= 4_000
+        if "pronoun form" in bl:
+            score -= 3_000
+        if "determiner form" in bl:
+            score -= 2_000
+        if "predicative form" in bl or "adverb form" in bl:
+            score -= 1_500
+        if "noun form" in bl:
+            score -= 2_200
+        if "romanization" in bl:
+            score -= 5_000
+
+    pos = (obj.get("pos") or "").lower()
+    # When Kaikki splits the same surface into several POS rows (e.g. по́мочь
+    # verb vs belt noun, посторо́нний adjective vs “stranger” noun), the old
+    # ordering preferred noun over verb/adj. Learner entries should keep the
+    # core lemma sense.
+    pos_bump = {
+        "adv": 80,
+        "det": 76,
+        "pron": 74,
+        "verb": 64,
+        "adj": 62,
+        "noun": 54,
+        "name": -180,
+        "particle": 50,
+        "conj": 48,
+    }
+    score += pos_bump.get(pos, 42)
+    return score
+
+
+def collect_lemma_best(
+    kaikki_path: Path,
+    lemma_allowlist: AbstractSet[str],
+    common_lemmas: AbstractSet[str],
+    geo_lemmas: frozenset[str],
+) -> dict[str, tuple[int, tuple]]:
+    """
+    Map normalized lemma → (rank, candidate tuple) using the same filters and
+    merge rules as a full build. Only Kaikki rows tagged noun/verb/adj/adverb/num
+    (see LEXICAL_BUILD_POS) participate. Used by build() and
+    refresh_lexeme_preferences().
+    """
+    lemma_best: dict[str, tuple[int, tuple]] = {}
+    for obj in stream_kaikki(kaikki_path):
+        word = obj.get("word")
+        if not isinstance(word, str):
+            continue
+        lemma = normalize_lemma(word)
+        if not is_clean_lemma(lemma) or lemma not in lemma_allowlist:
+            continue
+        pos_raw = (obj.get("pos") or "").strip().lower()
+        if pos_raw not in LEXICAL_BUILD_POS:
+            continue
+        senses = obj.get("senses") or []
+        if not has_any_lexical_gloss(senses):
+            continue
+        if should_exclude_place_entry(obj, lemma, geo_lemmas):
+            continue
+        raw = next(iter_lexical_gloss_texts(senses), None)
+        if not raw:
+            continue
+        if should_exclude_person_name_entry(obj, raw):
+            continue
+        glosses = unique_glosses(senses, limit=MAX_GLOSSES)
+        if not glosses:
+            continue
+
+        headline = glosses[0]
+        english = (
+            headline[: MAX_GLOSS_LEN - 1].rstrip() + "…"
+            if len(headline) > MAX_GLOSS_LEN
+            else headline
+        )
+        meaning = make_meaning_description(glosses)
+
+        pos = pos_raw or None
+        glosses_blob = "\n".join(glosses) if glosses else None
+        ph = pronunciation_for_entry(word, obj.get("forms") or [], obj.get("sounds") or [])
+        rk = kaikki_row_rank(obj)
+        cand = (
+            word,
+            english,
+            meaning,
+            pos,
+            glosses_blob,
+            ph,
+            normalize_for_index(word),
+            normalize_for_index(english),
+            1 if lemma in common_lemmas else 0,
+            lemma,
+        )
+
+        prev = lemma_best.get(lemma)
+        if prev is None or rk > prev[0]:
+            lemma_best[lemma] = (rk, cand)
+
+    return lemma_best
+
+
+def apply_manual_lexeme_fixes(conn: sqlite3.Connection) -> None:
+    """
+    Kaikki occasionally picks the wrong sense for a surface form (homograph).
+    Patch specific word_id rows and keep words_fts aligned with ru_norm / en_norm.
+    """
+    fixes: list[dict[str, str]] = [
+        {
+            "id": "pomoch",
+            "en": "to help",
+            "pos": "verb",
+            "meaning_en": "to help",
+            "glosses_en": "to help\nhelp\nassist",
+        },
+        {
+            "id": "postoronniy",
+            "en": "extraneous",
+            "pos": "adj",
+            "meaning_en": "extraneous; foreign; outsider (substantive)",
+            "glosses_en": "extraneous\nforeign\noutside\nstranger",
+        },
+    ]
+    for f in fixes:
+        en_norm = normalize_for_index(f["en"])
+        cur = conn.execute(
+            "UPDATE words SET en = ?, pos = ?, en_norm = ?, meaning_en = ?, glosses_en = ? "
+            "WHERE id = ?",
+            (f["en"], f["pos"], en_norm, f["meaning_en"], f["glosses_en"], f["id"]),
+        )
+        if cur.rowcount == 0:
+            continue
+        row = conn.execute(
+            "SELECT ru_norm, en_norm FROM words WHERE id = ?",
+            (f["id"],),
+        ).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE words_fts SET ru = ?, en = ? WHERE id = ?",
+                (row[0], row[1], f["id"]),
+            )
+
+
 def build(args: argparse.Namespace) -> int:
     print(f"Reading frequency list: {args.freq}")
     freq = read_frequency(args.freq)
@@ -397,45 +970,41 @@ def build(args: argparse.Namespace) -> int:
     print(f"  ↳ {len(freq)} ranked lemmas; top {len(common_set)} flagged common")
 
     print(f"Streaming Kaikki dump: {args.kaikki}")
-    used_ids: set[str] = set()
-    rows: list[tuple] = []
-    seen_lemmas: set[str] = set()
 
-    for obj in stream_kaikki(args.kaikki):
-        word = obj.get("word")
-        if not isinstance(word, str):
+    geo_lemmas = load_geo_blocklist(SCRIPT_DIR / "geo_lemma_blocklist.txt")
+
+    lemma_best = collect_lemma_best(args.kaikki, freq_set, common_set, geo_lemmas)
+
+    used_ids = set[str]()
+    rows: list[tuple] = []
+    for lem in freq:
+        got = lemma_best.get(lem)
+        if got is None:
             continue
-        lemma = normalize_lemma(word)
-        # Only keep lemmas that appear in the frequency list — this excludes
-        # inflected forms (conjugations, declensions) that Wiktionary documents
-        # as separate entries, keeping the dictionary to clean base forms only.
-        if not is_clean_lemma(lemma) or lemma not in freq_set or lemma in seen_lemmas:
-            continue
-        senses = obj.get("senses") or []
-        english = first_gloss(senses, MAX_GLOSS_LEN)
-        if not english:
-            continue
-        meaning = first_gloss(senses, MAX_MEANING_LEN)
-        meaning = meaning if meaning and meaning != english else None
-        ph = pronunciation_for_entry(word, obj.get("forms") or [], obj.get("sounds") or [])
-        seen_lemmas.add(lemma)
-        rows.append((
-            slugify(word, used_ids),
-            word,
-            english,
-            meaning,
-            ph,
-            normalize_for_index(word),
-            normalize_for_index(english),
-            1 if lemma in common_set else 0,
-        ))
+        _rk, cand = got
+        w_surface, english, meaning, pos, glosses_blob, ph, ru_i, en_i, is_common_f, _lemma_dup = cand
+        rows.append(
+            (
+                slugify(w_surface, used_ids),
+                w_surface,
+                english,
+                meaning,
+                pos,
+                glosses_blob,
+                None,
+                ph,
+                ru_i,
+                en_i,
+                is_common_f,
+            )
+        )
 
     print(f"  ↳ built {len(rows)} entries; "
-          f"{sum(1 for r in rows if r[7] == 1)} marked common")
+          f"{sum(1 for r in rows if r[10] == 1)} marked common")
 
-    if len(rows) < MIN_ENTRIES:
+    if len(rows) < args.min_entries:
         print(
-            f"Only {len(rows)} entries built, below floor of {MIN_ENTRIES}.",
+            f"Only {len(rows)} entries built, below floor of {args.min_entries}.",
             file=sys.stderr,
         )
         return 3
@@ -463,14 +1032,15 @@ def build(args: argparse.Namespace) -> int:
             (DICTIONARY_VERSION,),
         )
         conn.executemany(
-            "INSERT INTO words(id, ru, en, meaning_en, phonetic, "
-            "ru_norm, en_norm, is_common) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO words(id, ru, en, meaning_en, pos, glosses_en, phonetic, "
+            "ai_note_en, ru_norm, en_norm, is_common) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             rows,
         )
         conn.executemany(
             "INSERT INTO words_fts(id, ru, en) VALUES (?, ?, ?)",
-            ((r[0], r[5], r[6]) for r in rows),
+            ((r[0], r[8], r[9]) for r in rows),
         )
+        apply_manual_lexeme_fixes(conn)
         conn.execute("COMMIT")
         conn.executescript("PRAGMA optimize;")
         conn.execute("VACUUM")
@@ -482,11 +1052,138 @@ def build(args: argparse.Namespace) -> int:
     return 0
 
 
+def refresh_lexeme_preferences(args: argparse.Namespace) -> int:
+    """Re-run Kaikki merge for every lemma in an existing DB; update changed rows."""
+    sqlite_path: Path = args.refresh_sqlite
+    geo_lemmas = load_geo_blocklist(SCRIPT_DIR / "geo_lemma_blocklist.txt")
+
+    conn = sqlite3.connect(sqlite_path, isolation_level=None)
+    try:
+        rows = conn.execute(
+            "SELECT id, ru, ru_norm, en, meaning_en, pos, glosses_en, phonetic, en_norm, is_common "
+            "FROM words"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    lemma_allowlist = {normalize_lemma(r[1]) for r in rows}
+    common_lemmas = {
+        normalize_lemma(r[1]) for r in rows if r[9] == 1
+    }
+
+    print(
+        f"Re-scoring {len(lemma_allowlist)} lemmas from Kaikki "
+        f"({len(common_lemmas)} marked common in DB)…"
+    )
+    lemma_best = collect_lemma_best(args.kaikki, lemma_allowlist, common_lemmas, geo_lemmas)
+
+    conn = sqlite3.connect(sqlite_path, isolation_level=None)
+    try:
+        conn.execute("BEGIN")
+        updated = 0
+        missing_lemmas: set[str] = set()
+        for (
+            wid,
+            ru,
+            ru_norm,
+            en,
+            meaning_en,
+            pos,
+            glosses_en,
+            phonetic,
+            en_norm,
+            is_common,
+        ) in rows:
+            lem = normalize_lemma(ru)
+            got = lemma_best.get(lem)
+            if got is None:
+                missing_lemmas.add(lem)
+                continue
+            _rk, cand = got
+            (
+                _w_surface,
+                english,
+                meaning,
+                win_pos,
+                glosses_blob,
+                ph,
+                ru_i,
+                en_i,
+                _is_common_f,
+                _lemma_dup,
+            ) = cand
+
+            def norm_text(x: Optional[str]) -> str:
+                return "" if x is None else x
+
+            if (
+                en == english
+                and norm_text(meaning_en) == norm_text(meaning)
+                and norm_text(pos).lower() == norm_text(win_pos).lower()
+                and norm_text(glosses_en) == norm_text(glosses_blob)
+                and norm_text(phonetic) == norm_text(ph)
+                and en_norm == en_i
+            ):
+                continue
+
+            conn.execute(
+                "UPDATE words SET en = ?, meaning_en = ?, pos = ?, glosses_en = ?, "
+                "phonetic = ?, en_norm = ? WHERE id = ?",
+                (english, meaning, win_pos, glosses_blob, ph, en_i, wid),
+            )
+            conn.execute(
+                "UPDATE words_fts SET ru = ?, en = ? WHERE id = ?",
+                (ru_norm, en_i, wid),
+            )
+            updated += 1
+
+        conn.execute("DELETE FROM dictionary_version")
+        conn.execute(
+            "INSERT INTO dictionary_version(value) VALUES (?)",
+            (DICTIONARY_VERSION,),
+        )
+        apply_manual_lexeme_fixes(conn)
+        conn.execute("COMMIT")
+        conn.executescript("PRAGMA optimize;")
+        print(
+            f"Updated {updated} words; no Kaikki candidate for "
+            f"{len(missing_lemmas)} distinct normalized lemmas "
+            "(often morphology-only heads)."
+        )
+    finally:
+        conn.close()
+
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--kaikki", required=True, type=Path)
-    ap.add_argument("--freq", required=True, type=Path)
+    ap.add_argument(
+        "--freq",
+        required=False,
+        type=Path,
+        help="frequency list lemma allowlist (not used with --refresh-sqlite)",
+    )
+    ap.add_argument(
+        "--refresh-sqlite",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Re-merge Kaikki rows for lemmas already in this DB; bumps "
+            "dictionary_version and applies manual_lexeme_fixes "
+            f"(currently {DICTIONARY_VERSION})."
+        ),
+    )
     ap.add_argument("--common-limit", type=int, default=5000)
+    ap.add_argument(
+        "--min-entries",
+        type=int,
+        default=MIN_ENTRIES,
+        metavar="N",
+        help=f"abort if fewer lemmas built (default {MIN_ENTRIES})",
+    )
     ap.add_argument(
         "--out",
         type=Path,
@@ -496,6 +1193,15 @@ def main() -> int:
 
     if not args.kaikki.exists():
         print(f"kaikki dump not found: {args.kaikki}", file=sys.stderr)
+        return 2
+    if args.refresh_sqlite is not None:
+        if not args.refresh_sqlite.exists():
+            print(f"sqlite DB not found: {args.refresh_sqlite}", file=sys.stderr)
+            return 2
+        return refresh_lexeme_preferences(args)
+
+    if args.freq is None:
+        print("--freq is required unless --refresh-sqlite is given", file=sys.stderr)
         return 2
     if not args.freq.exists():
         print(f"frequency list not found: {args.freq}", file=sys.stderr)

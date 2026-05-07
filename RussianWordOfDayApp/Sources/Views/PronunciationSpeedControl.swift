@@ -69,33 +69,29 @@ struct PronunciationSpeedControl: View {
         return Button {
             value = AppSettings.snapPronunciationRateScale(preset)
         } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 4) {
                 Text(Self.presetTitle(preset))
                     .font(.subheadline.weight(.medium))
                     .monospacedDigit()
-                if preset == 1 {
-                    Text("Normal")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } else if preset == 0 {
-                    Text("Mute")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 4)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(selected ? Color.accentColor.opacity(0.22) : Color(uiColor: .secondarySystemFill))
+                    }
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .strokeBorder(selected ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1)
+                    }
+
+                if let caption = Self.presetCaption(preset) {
+                    Text(caption)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else {
-                    Color.clear
-                        .frame(height: 12)
+                    Color.clear.frame(height: 12)
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 4)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.22) : Color(uiColor: .secondarySystemFill))
-            }
-            .overlay {
-                Capsule(style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -106,6 +102,14 @@ struct PronunciationSpeedControl: View {
         if preset == 0 { return "0" }
         if preset == 1 { return "1" }
         return String(format: "%.2f", preset)
+    }
+
+    private static func presetCaption(_ preset: Double) -> String? {
+        switch preset {
+        case 0: return "Mute"
+        case 1: return "Normal"
+        default: return nil
+        }
     }
 
     private static func accessibilityPresetLabel(_ preset: Double) -> String {

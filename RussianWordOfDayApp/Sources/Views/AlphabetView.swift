@@ -1,11 +1,14 @@
 import SwiftUI
 
 struct AlphabetView: View {
+    @EnvironmentObject private var settings: AppSettings
+    @StateObject private var speaker = RussianHeadwordSpeaker()
+
     var body: some View {
         List {
             Section {
                 ForEach(CyrillicAlphabet.letters) { letter in
-                    LetterRow(letter: letter)
+                    LetterRow(letter: letter, speaker: speaker, rateScale: Float(settings.pronunciationRateScale))
                 }
             } header: {
                 Text("Russian Alphabet — 33 letters")
@@ -22,6 +25,8 @@ struct AlphabetView: View {
 
 private struct LetterRow: View {
     let letter: CyrillicLetter
+    let speaker: RussianHeadwordSpeaker
+    let rateScale: Float
 
     var body: some View {
         HStack(spacing: 16) {
@@ -42,6 +47,18 @@ private struct LetterRow: View {
                     .font(.footnote)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                speaker.toggleSpeaking(russianLemma: letter.lower, rateScale: rateScale)
+            } label: {
+                Image(systemName: speaker.isSpeaking ? "stop.circle.fill" : "play.circle.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .imageScale(.large)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(speaker.isSpeaking ? "Stop letter pronunciation" : "Play letter pronunciation")
+            .accessibilityHint("Speaks the Russian letter using on-device text to speech.")
+            .disabled(rateScale <= 0)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

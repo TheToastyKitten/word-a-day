@@ -33,6 +33,7 @@ final class AppSettings: ObservableObject {
         } else {
             self.pronunciationRateScale = 1.0
         }
+
     }
 
     func dateComponentsForTimeIndex(_ idx: Int) -> DateComponents {

@@ -8,6 +8,8 @@ struct MainView: View {
     @State private var results: [WordEntry] = []
     @State private var showingRecents: Bool = false
     @State private var showAboutAlert = false
+    @State private var enrichmentByID: [String: WordEnrichment] = [:]
+    @State private var selectedPOS: Set<POSFilter> = []
 
     @FocusState private var searchFieldFocused: Bool
 
@@ -47,6 +49,9 @@ struct MainView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: router.path) { _, _ in
+            refreshDropdown()
+        }
         .alert("About this app", isPresented: $showAboutAlert) {
             Button("Whatever 🙄", role: .cancel) {}
         } message: {
@@ -84,7 +89,7 @@ struct MainView: View {
                     .padding(4)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Numbers zero through ten")
+            .accessibilityLabel("Numbers zero through twenty")
 
             Button {
                 router.openAlphabet()
@@ -122,7 +127,8 @@ struct MainView: View {
     private static let alphabetIconSize: CGFloat = 38
     private static let infoIconSize: CGFloat = 22
     private static let infoIconFrame: CGFloat = 26
-    private static let mainSearchResultLimit = 5
+    private static let mainSearchResultLimit = 10
+    private static let enrichmentPrefetchTopN = 4
 
     /// Light: standard light-gray search-bar fill (matches iOS search style).
     /// Dark: a clearly-visible gray against the black `.systemBackground`,
@@ -135,6 +141,8 @@ struct MainView: View {
 
     private var searchSection: some View {
         VStack(spacing: 8) {
+            posFilterChips
+
             TextField("Search (Russian or English)", text: $query)
                 .focused($searchFieldFocused)
                 .submitLabel(.search)
@@ -162,23 +170,11 @@ struct MainView: View {
                 .onChange(of: query)              { _, _ in refreshDropdown() }
                 .onChange(of: searchFieldFocused) { _, _ in refreshDropdown() }
                 .onAppear { refreshDropdown() }
-
-            // Keyboard toolbar (`placement: .keyboard`) does not reliably appear when the
-            // navigation bar toolbar is hidden; keep Done in-app so it shows with results too.
-            if searchFieldFocused {
-                HStack {
-                    Spacer()
-                    Button("Done") {
-                        searchFieldFocused = false
-                    }
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 4)
+                // Key off `results` (not `query`) so the prefetch runs after the
+                // dropdown contents are refreshed.
+                .task(id: results.map(\.id)) {
+                    await prefetchEnrichmentForVisibleResults()
                 }
-                .frame(maxWidth: 460)
-                .accessibilityIdentifier("search-keyboard-done")
-                .accessibilityLabel("Dismiss keyboard")
-            }
 
             if !results.isEmpty {
                 resultsDropdown
@@ -187,19 +183,64 @@ struct MainView: View {
     }
 
     private func refreshDropdown() {
+        let posFilters = Array(Set(selectedPOS.flatMap(\.posMatchValues))).sorted()
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty {
             if searchFieldFocused {
-                results = store.recentViews(limit: 5)
+                results = store.recentViews(limit: Self.mainSearchResultLimit, posFilters: posFilters)
                 showingRecents = !results.isEmpty
             } else {
-                results = []
-                showingRecents = false
+                // Preserve the last-shown dropdown state when navigating away
+                // (e.g. opening a word from recents) so Back restores it.
+                if !showingRecents {
+                    results = []
+                }
             }
         } else {
-            results = store.search(query: trimmed, limit: Self.mainSearchResultLimit)
+            results = store.search(query: trimmed, limit: Self.mainSearchResultLimit, posFilters: posFilters)
             showingRecents = false
         }
+    }
+
+    private var posFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(POSFilter.allCases, id: \.self) { filter in
+                    posChip(filter)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .frame(maxWidth: 460)
+        .frame(height: 34)
+    }
+
+    private func posChip(_ filter: POSFilter) -> some View {
+        let selected = selectedPOS.contains(filter)
+        return Button {
+            if selected {
+                selectedPOS.remove(filter)
+            } else {
+                selectedPOS.insert(filter)
+            }
+            refreshDropdown()
+        } label: {
+            Text(filter.label)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.18) : Color(uiColor: .secondarySystemFill))
+                }
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(selected ? Color.accentColor.opacity(0.42) : Color.clear, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(selected ? "\(filter.label), selected" : "\(filter.label), not selected")
     }
 
     private var resultsDropdown: some View {
@@ -220,19 +261,22 @@ struct MainView: View {
 
                 ForEach(results) { entry in
                     Button {
+                        searchFieldFocused = false
                         router.path.append(.wordDetail(id: entry.id))
-                        query = ""
-                        results = []
-                        showingRecents = false
                     } label: {
                         HStack(spacing: 10) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.russian)
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
+                                dropdownLemmaHeadline(entry: entry)
+
                                 Text(entry.english)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                if let snippet = dropdownSnippet(for: entry) {
+                                    Text(snippet)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right")
@@ -269,6 +313,163 @@ struct MainView: View {
         .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
         .frame(maxWidth: 460)
         .frame(maxHeight: 320)
+    }
+
+    /// Russian lemma + POS chip (styled like unselected POS filter pills).
+    @ViewBuilder
+    private func dropdownLemmaHeadline(entry: WordEntry) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(entry.russian)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            if let posLabel = Self.dropdownPOSChipLabel(entry.pos) {
+                Text(posLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemFill))
+                    }
+                    .fixedSize()
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Short tag for dropdown rows (`Noun` / `Verb` / `Adj` / `Adv`); aligns with POS filter wording.
+    private static func dropdownPOSChipLabel(_ pos: String?) -> String? {
+        guard let raw = pos?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !raw.isEmpty else { return nil }
+        switch raw {
+        case "noun": return "Noun"
+        case "verb": return "Verb"
+        case "adj", "adjective": return "Adj"
+        case "adv", "adverb": return "Adv"
+        default: return nil
+        }
+    }
+
+    private func dropdownSnippet(for entry: WordEntry) -> String? {
+        if let enriched = enrichmentByID[entry.id] {
+            for def in enriched.definitions {
+                let t = def.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !t.isEmpty else { continue }
+                if snippetIsPlausibleForEntry(t, entry: entry) {
+                    return t
+                }
+            }
+        }
+        return meaningSnippet(for: entry)
+    }
+
+    private func prefetchEnrichmentForVisibleResults() async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Recents dropdown runs with an empty query; still allow enrichment there.
+        if !showingRecents, trimmed.count < 2 { return }
+        if results.isEmpty { return }
+
+        let ids = Array(results.prefix(Self.enrichmentPrefetchTopN).map(\.id))
+
+        await MainActor.run {
+            // Drop enrichment for rows no longer visible.
+            enrichmentByID = enrichmentByID.filter { ids.contains($0.key) }
+        }
+
+        for id in ids {
+            if Task.isCancelled { return }
+            if enrichmentByID[id] != nil { continue }
+
+            if let cached = store.getEnrichment(id: id) {
+                // If the cached enrichment came from an older provider (e.g. Wiktionary),
+                // force a refresh so dropdown snippets stay consistent.
+                if cached.source == "yandex_ruen_v4" {
+                    await MainActor.run { enrichmentByID[id] = cached }
+                    continue
+                }
+            }
+
+            await store.fetchEnrichmentIfNeeded(id: id)
+            if Task.isCancelled { return }
+
+            if let cached = store.getEnrichment(id: id) {
+                await MainActor.run { enrichmentByID[id] = cached }
+            }
+        }
+    }
+
+    private func meaningSnippet(for entry: WordEntry) -> String? {
+        let headline = entry.english.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if let glosses = entry.glosses_en {
+            for line in glosses.split(separator: "\n") {
+                let s = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+                if s.isEmpty { continue }
+                if s.lowercased() == headline { continue }
+                if snippetIsPlausibleForEntry(s, entry: entry) {
+                    return s
+                }
+            }
+        }
+        if let meaning = entry.meaning_en {
+            let s = meaning.trimmingCharacters(in: .whitespacesAndNewlines)
+            if s.isEmpty { return nil }
+            if s.lowercased() == headline { return nil }
+            if snippetIsPlausibleForEntry(s, entry: entry) {
+                return s
+            }
+        }
+        return nil
+    }
+
+    /// Drop obvious Kaikki/Yandex homograph garbage (e.g. “belt” on a verb lemma).
+    private func snippetIsPlausibleForEntry(_ snippet: String, entry: WordEntry) -> Bool {
+        let raw = snippet.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return false }
+
+        let pos = entry.pos?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        guard pos == "verb" else { return true }
+
+        let firstSegment = raw.split(separator: "—", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() } ?? raw.lowercased()
+
+        let beltHomographNoise: Set<String> = [
+            "belt", "suspenders", "leading-string", "leading string",
+        ]
+        if beltHomographNoise.contains(firstSegment) { return false }
+
+        return true
+    }
+}
+
+private enum POSFilter: CaseIterable, Hashable {
+    /// Matches `WordStore` beginner filter (noun / verb / adj / adv only).
+    case noun
+    case verb
+    case adj
+    case adv
+
+    var label: String {
+        switch self {
+        case .noun: return "Noun"
+        case .verb: return "Verb"
+        case .adj: return "Adj"
+        case .adv: return "Adv"
+        }
+    }
+
+    /// Matches `words.pos` (Kaikki may store `adj`/`adjective`, `adv`/`adverb`).
+    var posMatchValues: [String] {
+        switch self {
+        case .noun: return ["noun"]
+        case .verb: return ["verb"]
+        case .adj: return ["adj", "adjective"]
+        case .adv: return ["adv", "adverb"]
+        }
     }
 }
 

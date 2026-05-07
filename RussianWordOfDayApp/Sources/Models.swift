@@ -5,7 +5,20 @@ struct WordEntry: Identifiable, Equatable, Hashable, Codable {
     let russian: String
     let english: String
     let meaning_en: String?
+    let pos: String?
+    let glosses_en: String?
+    let ai_note_en: String?
     let phonetic: String?
+}
+
+/// Cached, online-only enrichment for a word (stored locally after fetch).
+struct WordEnrichment: Identifiable, Equatable, Hashable, Codable {
+    let id: String // word_id
+    let source: String
+    let fetchedAt: Date
+    let definitions: [String]
+    let examples: [String]
+    let sourceURL: URL?
 }
 
 /// One row of the scheduled push buffer: a future, pre-assigned, non-repeating

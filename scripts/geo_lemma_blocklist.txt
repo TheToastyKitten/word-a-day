@@ -1,0 +1,7 @@
+# Optional: extra Russian lemmas to drop from the learner dictionary when they
+# still appear via frequency∩Kaikki (e.g. alternate proper-noun senses).
+# One NFC-normalized-ish surface per line; build normalizes stress/ё itself.
+# Lines starting with # are ignored.
+
+лондон
+вашингтон

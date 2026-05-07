@@ -16,6 +16,7 @@
 		445DCA801C69CAA879944A0D /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */; };
 		4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */; };
 		8603D2C41C866AC18A5DE55D /* dictionary.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 4D48EFC6A3F04D78EFFDD0BA /* dictionary.sqlite */; };
+		8877B42FD327C899BFC8DBD2 /* YandexDictionaryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538BB91B953533C8A3B06EB7 /* YandexDictionaryClient.swift */; };
 		91363713046B15B648A97D78 /* WordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33212C89C1013DFB8B90080 /* WordStore.swift */; };
 		9FE1F612784ED4708FA9979E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5096B343BA7EA1C0DEC57E /* Models.swift */; };
 		AAEB666EF11C04CE80F25955 /* WordOfDayScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */; };
@@ -39,6 +40,7 @@
 		3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordOfDayScheduler.swift; sourceTree = "<group>"; };
 		418632C8BD929E7B2CEB1E11 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		4D48EFC6A3F04D78EFFDD0BA /* dictionary.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = dictionary.sqlite; sourceTree = "<group>"; };
+		538BB91B953533C8A3B06EB7 /* YandexDictionaryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YandexDictionaryClient.swift; sourceTree = "<group>"; };
 		55DED58D17D5C538980376CB /* AlphabetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlphabetView.swift; sourceTree = "<group>"; };
 		57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianWordOfDayApp.swift; sourceTree = "<group>"; };
 		62ABDADFEC80A7711A84E2BE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -81,6 +83,7 @@
 				B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */,
 				80AA771D8F8EDC1F3FCC86D4 /* RussianHeadwordSpeaker.swift */,
 				57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */,
+				538BB91B953533C8A3B06EB7 /* YandexDictionaryClient.swift */,
 				3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */,
 				F33212C89C1013DFB8B90080 /* WordStore.swift */,
 			);
@@ -208,6 +211,7 @@
 				310A0834DFBEF0B70A0C9BA3 /* RussianHeadwordSpeaker.swift in Sources */,
 				D9CAAD359E4CA6359EEF480C /* RussianWordOfDayApp.swift in Sources */,
 				4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */,
+				8877B42FD327C899BFC8DBD2 /* YandexDictionaryClient.swift in Sources */,
 				EB7395F553CFFB16BFCA1B98 /* WordDetailView.swift in Sources */,
 				AAEB666EF11C04CE80F25955 /* WordOfDayScheduler.swift in Sources */,
 				91363713046B15B648A97D78 /* WordStore.swift in Sources */,
