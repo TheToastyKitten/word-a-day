@@ -29,6 +29,11 @@ struct WordDetailView: View {
         }
         .navigationTitle("Word")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: wordID) {
+            if store.getWord(id: wordID) != nil {
+                store.recordRecentView(id: wordID)
+            }
+        }
     }
 
     private func headerSection(word: WordEntry) -> some View {
@@ -83,11 +88,15 @@ struct WordDetailView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(letter.nameEn)
                                         .font(.body)
-                                    if let extra = letter.soundDescription {
-                                        Text(extra)
+                                    if let note = letter.soundNote {
+                                        Text(note)
                                             .font(.footnote)
                                             .foregroundStyle(.secondary)
-                                            .italic(letter.soundNote != nil)
+                                            .italic()
+                                    } else if let attr = letter.attributedSoundDescription() {
+                                        Text(attr)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
                                 Spacer(minLength: 0)
