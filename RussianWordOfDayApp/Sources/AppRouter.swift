@@ -18,5 +18,13 @@ final class AppRouter: ObservableObject {
     func openAlphabet() {
         path.append(.alphabet)
     }
+
+    func openNumbers() {
+        path.append(.numbers)
+    }
+
+    func openUsedWords() {
+        path.append(.usedWords)
+    }
 }
 

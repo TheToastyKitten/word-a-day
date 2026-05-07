@@ -8,16 +8,20 @@
 
 /* Begin PBXBuildFile section */
 		01008E683023187CAFCFBA48 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94E58577DD380BD9A81A0E0 /* AppDelegate.swift */; };
-		0A3F0110F8B7919F156C7FAF /* words.seed.json in Resources */ = {isa = PBXBuildFile; fileRef = CF864B749345269C09167E11 /* words.seed.json */; };
 		18D797675FAF45060864815C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E9E024F7B2871C9251E8ED /* RootView.swift */; };
 		1E7278CE30954637E328ACB6 /* CyrillicAlphabet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119C9D269F5259753736604C /* CyrillicAlphabet.swift */; };
 		2DE3391EEF45E893F078D8CB /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46B42B8AADF55D988926223 /* MainView.swift */; };
+		310A0834DFBEF0B70A0C9BA3 /* RussianHeadwordSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AA771D8F8EDC1F3FCC86D4 /* RussianHeadwordSpeaker.swift */; };
 		4175BB028AD561B21F05E7AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 62ABDADFEC80A7711A84E2BE /* Assets.xcassets */; };
 		445DCA801C69CAA879944A0D /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */; };
 		4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */; };
+		8603D2C41C866AC18A5DE55D /* dictionary.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 4D48EFC6A3F04D78EFFDD0BA /* dictionary.sqlite */; };
 		91363713046B15B648A97D78 /* WordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33212C89C1013DFB8B90080 /* WordStore.swift */; };
 		9FE1F612784ED4708FA9979E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5096B343BA7EA1C0DEC57E /* Models.swift */; };
 		AAEB666EF11C04CE80F25955 /* WordOfDayScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */; };
+		B34CB6C74A3F0BCD9FBCFEA7 /* PronunciationSpeedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CC3E4B17DBB39B87B21E57 /* PronunciationSpeedControl.swift */; };
+		C1FE75323EF8CE1D965E9364 /* ManageUsedWordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D6197B8F8DACE6A59855E1 /* ManageUsedWordsView.swift */; };
+		D3CEB4DB9947CFA07972C89E /* NumbersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D082FBCBAD59AF3B6D6CA558 /* NumbersView.swift */; };
 		D9CAAD359E4CA6359EEF480C /* RussianWordOfDayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */; };
 		DB1C4D9FC63F5E1BFB83359A /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CA3F76A69ECD8D41E19EEF /* AppRouter.swift */; };
 		DFBF054F13546A2D7593AF96 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418632C8BD929E7B2CEB1E11 /* AppSettings.swift */; };
@@ -27,19 +31,23 @@
 
 /* Begin PBXFileReference section */
 		119C9D269F5259753736604C /* CyrillicAlphabet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyrillicAlphabet.swift; sourceTree = "<group>"; };
+		12CC3E4B17DBB39B87B21E57 /* PronunciationSpeedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationSpeedControl.swift; sourceTree = "<group>"; };
 		22E9E024F7B2871C9251E8ED /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		293787A43EC974A5B4771035 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
 		2A5096B343BA7EA1C0DEC57E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordOfDayScheduler.swift; sourceTree = "<group>"; };
 		418632C8BD929E7B2CEB1E11 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		4D48EFC6A3F04D78EFFDD0BA /* dictionary.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = dictionary.sqlite; sourceTree = "<group>"; };
 		55DED58D17D5C538980376CB /* AlphabetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlphabetView.swift; sourceTree = "<group>"; };
 		57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianWordOfDayApp.swift; sourceTree = "<group>"; };
 		62ABDADFEC80A7711A84E2BE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		71CA3F76A69ECD8D41E19EEF /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		80AA771D8F8EDC1F3FCC86D4 /* RussianHeadwordSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianHeadwordSpeaker.swift; sourceTree = "<group>"; };
 		9120D66EDE81921A5C14FA10 /* RussianWordOfDay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = RussianWordOfDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
-		CF864B749345269C09167E11 /* words.seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = words.seed.json; sourceTree = "<group>"; };
+		C1D6197B8F8DACE6A59855E1 /* ManageUsedWordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageUsedWordsView.swift; sourceTree = "<group>"; };
+		D082FBCBAD59AF3B6D6CA558 /* NumbersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumbersView.swift; sourceTree = "<group>"; };
 		D46B42B8AADF55D988926223 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		F33212C89C1013DFB8B90080 /* WordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordStore.swift; sourceTree = "<group>"; };
 		F94E58577DD380BD9A81A0E0 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -51,6 +59,9 @@
 			children = (
 				55DED58D17D5C538980376CB /* AlphabetView.swift */,
 				D46B42B8AADF55D988926223 /* MainView.swift */,
+				C1D6197B8F8DACE6A59855E1 /* ManageUsedWordsView.swift */,
+				D082FBCBAD59AF3B6D6CA558 /* NumbersView.swift */,
+				12CC3E4B17DBB39B87B21E57 /* PronunciationSpeedControl.swift */,
 				22E9E024F7B2871C9251E8ED /* RootView.swift */,
 				24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */,
 				293787A43EC974A5B4771035 /* WordDetailView.swift */,
@@ -68,6 +79,7 @@
 				119C9D269F5259753736604C /* CyrillicAlphabet.swift */,
 				2A5096B343BA7EA1C0DEC57E /* Models.swift */,
 				B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */,
+				80AA771D8F8EDC1F3FCC86D4 /* RussianHeadwordSpeaker.swift */,
 				57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */,
 				3DBEF24F100941F21C7AE97E /* WordOfDayScheduler.swift */,
 				F33212C89C1013DFB8B90080 /* WordStore.swift */,
@@ -96,7 +108,7 @@
 			isa = PBXGroup;
 			children = (
 				62ABDADFEC80A7711A84E2BE /* Assets.xcassets */,
-				CF864B749345269C09167E11 /* words.seed.json */,
+				4D48EFC6A3F04D78EFFDD0BA /* dictionary.sqlite */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -170,7 +182,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4175BB028AD561B21F05E7AA /* Assets.xcassets in Resources */,
-				0A3F0110F8B7919F156C7FAF /* words.seed.json in Resources */,
+				8603D2C41C866AC18A5DE55D /* dictionary.sqlite in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -187,9 +199,13 @@
 				DFBF054F13546A2D7593AF96 /* AppSettings.swift in Sources */,
 				1E7278CE30954637E328ACB6 /* CyrillicAlphabet.swift in Sources */,
 				2DE3391EEF45E893F078D8CB /* MainView.swift in Sources */,
+				C1FE75323EF8CE1D965E9364 /* ManageUsedWordsView.swift in Sources */,
 				9FE1F612784ED4708FA9979E /* Models.swift in Sources */,
 				445DCA801C69CAA879944A0D /* Notifications.swift in Sources */,
+				D3CEB4DB9947CFA07972C89E /* NumbersView.swift in Sources */,
+				B34CB6C74A3F0BCD9FBCFEA7 /* PronunciationSpeedControl.swift in Sources */,
 				18D797675FAF45060864815C /* RootView.swift in Sources */,
+				310A0834DFBEF0B70A0C9BA3 /* RussianHeadwordSpeaker.swift in Sources */,
 				D9CAAD359E4CA6359EEF480C /* RussianWordOfDayApp.swift in Sources */,
 				4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */,
 				EB7395F553CFFB16BFCA1B98 /* WordDetailView.swift in Sources */,

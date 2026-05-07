@@ -54,8 +54,8 @@ private struct LetterRow: View {
             Text(note)
                 .foregroundStyle(.secondary)
                 .italic()
-        } else if let sound = letter.similarSoundEn {
-            Text(sound)
+        } else if let attr = letter.attributedSoundDescription() {
+            Text(attr)
                 .foregroundStyle(.secondary)
         }
     }

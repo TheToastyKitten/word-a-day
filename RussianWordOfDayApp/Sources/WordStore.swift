@@ -13,7 +13,8 @@ final class WordStore: ObservableObject {
 
     private var db: OpaquePointer?
     private let dbFileName = "words.sqlite"
-    private let seedResourceName = "words.seed"
+    private let bundledDictionaryName = "dictionary"
+    private let bundledDictionaryExtension = "sqlite"
 
     deinit {
         if let db {
@@ -23,16 +24,17 @@ final class WordStore: ObservableObject {
 
     func ensureSeededIfNeeded() async {
         do {
+            try installBundledDictionaryIfMissing()
             try openOrCreateDatabase()
+            try migrateBundledDictionaryIfNeeded()
             try createSchemaIfNeeded()
-            try seedIfNeeded()
             isReady = true
         } catch {
             isReady = false
         }
     }
 
-    func search(query raw: String, limit: Int = 20) -> [WordEntry] {
+    func search(query raw: String, limit: Int = 5) -> [WordEntry] {
         guard let db else { return [] }
         let q = normalizeForIndex(raw)
         guard !q.isEmpty else { return [] }
@@ -101,8 +103,11 @@ final class WordStore: ObservableObject {
         let sql = """
         SELECT COUNT(*)
         FROM words w
-        LEFT JOIN used_words u ON u.word_id = w.id
-        WHERE u.word_id IS NULL;
+        LEFT JOIN used_words u       ON u.word_id = w.id
+        LEFT JOIN scheduled_pushes s ON s.word_id = w.id
+        WHERE u.word_id IS NULL
+          AND s.word_id IS NULL
+          AND w.is_common = 1;
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
@@ -216,6 +221,71 @@ final class WordStore: ObservableObject {
         return cancelled
     }
 
+    /// Marks a word used without scheduling any push. This is the manual
+    /// entry point used by the Word Detail toggle; it does NOT touch
+    /// `scheduled_pushes`, so any future push that already references this
+    /// word continues to fire (it was already going to).
+    ///
+    /// Idempotent: if the word is already in `used_words`, this is a no-op.
+    @discardableResult
+    func markWordUsed(id wordID: String, at date: Date = Date()) -> Bool {
+        guard let db else { return false }
+        let sql = "INSERT OR IGNORE INTO used_words(word_id, used_at) VALUES(?, ?);"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_int64(stmt, 2, Int64(date.timeIntervalSince1970))
+        return sqlite3_step(stmt) == SQLITE_DONE
+    }
+
+    // MARK: - Recent views
+
+    /// Records (or refreshes) a "user opened this word's detail" event.
+    /// `INSERT OR REPLACE` keeps a single row per word with the latest
+    /// timestamp so the recents list is naturally deduplicated.
+    func recordRecentView(id wordID: String, at date: Date = Date()) {
+        guard let db else { return }
+        let sql = "INSERT OR REPLACE INTO recent_views(word_id, viewed_at) VALUES(?, ?);"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_int64(stmt, 2, Int64(date.timeIntervalSince1970))
+        _ = sqlite3_step(stmt)
+
+        _ = sqlite3_exec(db, """
+            DELETE FROM recent_views
+            WHERE word_id NOT IN (
+              SELECT word_id FROM recent_views ORDER BY viewed_at DESC LIMIT 50
+            );
+            """, nil, nil, nil)
+    }
+
+    /// Returns the most recently viewed words, newest first, joined with
+    /// their display fields. Words whose underlying row has been deleted are
+    /// silently skipped via the join.
+    func recentViews(limit: Int = 5) -> [WordEntry] {
+        guard let db else { return [] }
+        let sql = """
+        SELECT w.id, w.ru, w.en, w.meaning_en, w.phonetic
+        FROM recent_views r
+        JOIN words w ON w.id = r.word_id
+        ORDER BY r.viewed_at DESC
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+
+        var out: [WordEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            out.append(rowToWord(stmt))
+        }
+        return out
+    }
+
     // MARK: - Rolling push buffer
 
     /// Number of currently-persisted pushes whose `fire_at` is strictly in
@@ -274,14 +344,14 @@ final class WordStore: ObservableObject {
         return out
     }
 
-    /// Picks a random unused word AND inserts a `scheduled_pushes` row
-    /// AND inserts into `used_words`, in a single transaction. Returns the
-    /// newly-built `ScheduledPush` plus the `WordEntry`, or nil if the
-    /// dictionary is exhausted.
+    /// Picks a random unused word AND inserts a `scheduled_pushes` row in a
+    /// single transaction. Returns the newly-built `ScheduledPush` plus the
+    /// `WordEntry`, or nil if the dictionary is exhausted.
     ///
-    /// The atomicity here matters: we never want a half-state where a word
-    /// is in `used_words` but not yet in `scheduled_pushes` (that would
-    /// permanently waste it).
+    /// The word is NOT inserted into `used_words` here — the row in
+    /// `scheduled_pushes` already excludes it from `pickRandomUnusedLocked`.
+    /// The promotion to `used_words` happens in
+    /// `promoteFiredPushesAndPurge(now:)` once `fire_at` has elapsed.
     func reserveAndPersistPush(
         identifier: String,
         fireAt: Date,
@@ -297,14 +367,13 @@ final class WordStore: ObservableObject {
         }
 
         let now = Date()
-        guard insertUsedWordLocked(wordID: word.id, at: now),
-              insertScheduledPushLocked(
-                  identifier: identifier,
-                  fireAt: fireAt,
-                  slot: slot,
-                  wordID: word.id,
-                  createdAt: now
-              ) else {
+        guard insertScheduledPushLocked(
+            identifier: identifier,
+            fireAt: fireAt,
+            slot: slot,
+            wordID: word.id,
+            createdAt: now
+        ) else {
             _ = sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
             return nil
         }
@@ -321,25 +390,49 @@ final class WordStore: ObservableObject {
     }
 
     /// Empties the `scheduled_pushes` buffer. Does NOT touch `used_words` —
-    /// the spec is explicit that words committed to the buffer remain "used"
-    /// even after a settings-change rebuild, so the same word can't reappear.
-    /// Caller is responsible for cancelling matching `UN` requests.
+    /// reserved words were never written there to begin with, so dropping the
+    /// reservations is enough to release them back into the pool. Caller is
+    /// responsible for cancelling the matching `UN` requests.
     func clearScheduledPushes() {
         guard let db else { return }
         _ = sqlite3_exec(db, "DELETE FROM scheduled_pushes;", nil, nil, nil)
     }
 
-    /// Removes scheduled push rows whose `fire_at` is in the past, since
-    /// iOS has already delivered (or dropped) them. Keeps the buffer count
-    /// honest for top-up math.
-    func purgePastScheduledPushes(now: Date = Date()) {
+    /// Promotes any `scheduled_pushes` rows whose `fire_at` has elapsed into
+    /// `used_words` (preserving `fire_at` as the `used_at` timestamp), then
+    /// deletes those rows. Idempotent and cheap — call it on every top-up,
+    /// foreground, and cold launch.
+    ///
+    /// Replaces the older `purgePastScheduledPushes`, which deleted past rows
+    /// without preserving the "this word was delivered" signal. Callers that
+    /// only care about cleanup can keep using this method; the promote step is
+    /// a no-op when there's nothing past `now`.
+    func promoteFiredPushesAndPurge(now: Date = Date()) {
         guard let db else { return }
-        let sql = "DELETE FROM scheduled_pushes WHERE fire_at <= ?;"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_int64(stmt, 1, Int64(now.timeIntervalSince1970))
-        _ = sqlite3_step(stmt)
+        let nowSec = Int64(now.timeIntervalSince1970)
+
+        _ = sqlite3_exec(db, "BEGIN IMMEDIATE;", nil, nil, nil)
+
+        let promoteSQL = """
+        INSERT OR IGNORE INTO used_words(word_id, used_at)
+        SELECT word_id, fire_at FROM scheduled_pushes WHERE fire_at <= ?;
+        """
+        var promoteStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, promoteSQL, -1, &promoteStmt, nil) == SQLITE_OK {
+            sqlite3_bind_int64(promoteStmt, 1, nowSec)
+            _ = sqlite3_step(promoteStmt)
+        }
+        sqlite3_finalize(promoteStmt)
+
+        let deleteSQL = "DELETE FROM scheduled_pushes WHERE fire_at <= ?;"
+        var deleteStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &deleteStmt, nil) == SQLITE_OK {
+            sqlite3_bind_int64(deleteStmt, 1, nowSec)
+            _ = sqlite3_step(deleteStmt)
+        }
+        sqlite3_finalize(deleteStmt)
+
+        _ = sqlite3_exec(db, "COMMIT;", nil, nil, nil)
     }
 
     // MARK: - Locked helpers (must run inside an open transaction)
@@ -349,8 +442,11 @@ final class WordStore: ObservableObject {
         let sql = """
         SELECT w.id, w.ru, w.en, w.meaning_en, w.phonetic
         FROM words w
-        LEFT JOIN used_words u ON u.word_id = w.id
+        LEFT JOIN used_words u       ON u.word_id = w.id
+        LEFT JOIN scheduled_pushes s ON s.word_id = w.id
         WHERE u.word_id IS NULL
+          AND s.word_id IS NULL
+          AND w.is_common = 1
         ORDER BY RANDOM()
         LIMIT 1;
         """
@@ -419,8 +515,14 @@ final class WordStore: ObservableObject {
         _ = sqlite3_exec(db, "PRAGMA synchronous=NORMAL;", nil, nil, nil)
         _ = sqlite3_exec(db, "PRAGMA foreign_keys=ON;", nil, nil, nil)
 
+        try exec("""
+        CREATE TABLE IF NOT EXISTS dictionary_version(value INTEGER NOT NULL);
+        """)
+
         // Canonical table. ru_norm/en_norm are the FTS-indexable forms
         // (lowercased, ё→е). The display columns ru/en are kept verbatim.
+        // is_common = 1 for the top frequency-list lemmas; push pool draws
+        // only from common words while search reads the full table.
         try exec("""
         CREATE TABLE IF NOT EXISTS words(
           id         TEXT PRIMARY KEY,
@@ -429,7 +531,8 @@ final class WordStore: ObservableObject {
           meaning_en TEXT,
           phonetic   TEXT,
           ru_norm    TEXT NOT NULL DEFAULT '',
-          en_norm    TEXT NOT NULL DEFAULT ''
+          en_norm    TEXT NOT NULL DEFAULT '',
+          is_common  INTEGER NOT NULL DEFAULT 0
         );
         """)
 
@@ -477,6 +580,15 @@ final class WordStore: ObservableObject {
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_scheduled_pushes_fire_at ON scheduled_pushes(fire_at);")
 
+        try exec("""
+        CREATE TABLE IF NOT EXISTS recent_views(
+          word_id   TEXT PRIMARY KEY,
+          viewed_at INTEGER NOT NULL,
+          FOREIGN KEY(word_id) REFERENCES words(id) ON DELETE CASCADE
+        );
+        """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_recent_views_viewed_at ON recent_views(viewed_at DESC);")
+
         // Keep words_fts in sync with words (insert/update/delete).
         // Drop+recreate so we can iterate on the trigger body across versions.
         _ = sqlite3_exec(db, "DROP TRIGGER IF EXISTS words_ai;", nil, nil, nil)
@@ -500,74 +612,170 @@ final class WordStore: ObservableObject {
         END;
         """)
 
-        // Backfill FTS for any rows that exist in `words` but not in `words_fts`
-        // (covers upgrades from older builds where the trigger didn't exist yet).
+        // FTS backfill intentionally omitted: the bundled dictionary.sqlite already
+        // has words_fts fully populated, and migrateBundledDictionaryIfNeeded() also
+        // inserts into words_fts in one batch. The LEFT JOIN approach that was here
+        // before was O(n²) on FTS5 (no B-tree index on the id column) and hung the
+        // main thread for minutes with 37k rows.
+
+        // One-time cleanup for upgrades from the eager-mark scheduler:
+        // any row in used_words whose word is currently sitting in
+        // scheduled_pushes was reserved-but-not-fired under the old behaviour.
+        // Free those rows so the new defer-until-fire model is honoured.
+        // On fresh installs and subsequent launches this is a no-op.
         try exec("""
-        INSERT INTO words_fts(id, ru, en)
-        SELECT w.id, w.ru_norm, w.en_norm
-        FROM words w
-        LEFT JOIN words_fts f ON f.id = w.id
-        WHERE f.id IS NULL;
+        DELETE FROM used_words
+        WHERE word_id IN (SELECT word_id FROM scheduled_pushes);
         """)
     }
 
-    /// Idempotent seeding: insert every entry from the bundled JSON using
-    /// INSERT OR IGNORE so re-running does nothing for rows already present,
-    /// and new rows added to the seed in a future build are picked up.
-    private func seedIfNeeded() throws {
-        guard let db else { return }
-
-        guard let url = Bundle.main.url(forResource: seedResourceName, withExtension: "json") else {
-            // No bundled seed — nothing to do, but not fatal.
+    /// On a fresh install (no `words.sqlite` in App Support) copies the bundled
+    /// `dictionary.sqlite` directly into the sandbox. The migration step then
+    /// becomes a no-op because the bundled DB already stamps `dictionary_version = 3`.
+    /// On an existing install this is a no-op and the migration runs instead.
+    private func installBundledDictionaryIfMissing() throws {
+        let url = try databaseURL()
+        let fm = FileManager.default
+        if fm.fileExists(atPath: url.path) {
             return
         }
-        let data = try Data(contentsOf: url)
-        let entries = try JSONDecoder().decode([SeedWordEntry].self, from: data)
+        guard let bundled = Bundle.main.url(
+            forResource: bundledDictionaryName,
+            withExtension: bundledDictionaryExtension
+        ) else {
+            // Allowed (dev builds may run without the asset). The migration
+            // step will then leave the user with an empty `words` table.
+            return
+        }
+        try fm.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fm.copyItem(at: bundled, to: url)
+    }
 
-        let insertSQL = """
-        INSERT OR IGNORE INTO words(id, ru, en, meaning_en, phonetic, ru_norm, en_norm)
-        VALUES(?, ?, ?, ?, ?, ?, ?);
-        """
-        var insertStmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, insertSQL, -1, &insertStmt, nil) == SQLITE_OK else {
-            throw NSError(domain: "WordStore", code: 3, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to prepare seed insert"
+    /// Reads the user's `dictionary_version`; if the table is missing or the
+    /// value is older than what the bundled DB ships with (2), swaps the
+    /// dictionary tables in a single transaction while preserving user-state
+    /// tables (`used_words`, `scheduled_pushes`, `recent_views`).
+    private func migrateBundledDictionaryIfNeeded() throws {
+        guard let db else { return }
+
+        let currentVersion = readDictionaryVersion()
+        let targetVersion: Int = 3
+        if currentVersion >= targetVersion {
+            return
+        }
+
+        guard let bundled = Bundle.main.url(
+            forResource: bundledDictionaryName,
+            withExtension: bundledDictionaryExtension
+        ) else {
+            // No bundled DB available (dev). Leave existing data alone.
+            return
+        }
+
+        // Foreign keys must be off across the table swap or DROP TABLE words
+        // will cascade-delete every row in used_words / scheduled_pushes /
+        // recent_views. We turn them back on (and clean up dangling refs)
+        // after the swap completes.
+        _ = sqlite3_exec(db, "PRAGMA foreign_keys=OFF;", nil, nil, nil)
+        defer {
+            _ = sqlite3_exec(db, "PRAGMA foreign_keys=ON;", nil, nil, nil)
+        }
+
+        let attachSQL = "ATTACH DATABASE ? AS bundled;"
+        var attachStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, attachSQL, -1, &attachStmt, nil) == SQLITE_OK else {
+            throw NSError(domain: "WordStore", code: 10, userInfo: [
+                NSLocalizedDescriptionKey: "ATTACH prepare failed"
             ])
         }
-        defer { sqlite3_finalize(insertStmt) }
-
-        _ = sqlite3_exec(db, "BEGIN;", nil, nil, nil)
-        for e in entries {
-            sqlite3_reset(insertStmt)
-            sqlite3_clear_bindings(insertStmt)
-
-            sqlite3_bind_text(insertStmt, 1, e.id, -1, SQLITE_TRANSIENT_SWIFT)
-            sqlite3_bind_text(insertStmt, 2, e.russian, -1, SQLITE_TRANSIENT_SWIFT)
-            sqlite3_bind_text(insertStmt, 3, e.english, -1, SQLITE_TRANSIENT_SWIFT)
-
-            if let m = e.meaning_en, !m.isEmpty {
-                sqlite3_bind_text(insertStmt, 4, m, -1, SQLITE_TRANSIENT_SWIFT)
-            } else {
-                sqlite3_bind_null(insertStmt, 4)
-            }
-            if let p = e.phonetic, !p.isEmpty {
-                sqlite3_bind_text(insertStmt, 5, p, -1, SQLITE_TRANSIENT_SWIFT)
-            } else {
-                sqlite3_bind_null(insertStmt, 5)
-            }
-
-            let ruNorm = normalizeForIndex(e.russian)
-            let enNorm = normalizeForIndex(e.english)
-            sqlite3_bind_text(insertStmt, 6, ruNorm, -1, SQLITE_TRANSIENT_SWIFT)
-            sqlite3_bind_text(insertStmt, 7, enNorm, -1, SQLITE_TRANSIENT_SWIFT)
-
-            _ = sqlite3_step(insertStmt)
+        sqlite3_bind_text(attachStmt, 1, bundled.path, -1, SQLITE_TRANSIENT_SWIFT)
+        let attachRC = sqlite3_step(attachStmt)
+        sqlite3_finalize(attachStmt)
+        guard attachRC == SQLITE_DONE else {
+            throw NSError(domain: "WordStore", code: 11, userInfo: [
+                NSLocalizedDescriptionKey: "ATTACH bundled DB failed"
+            ])
         }
-        _ = sqlite3_exec(db, "COMMIT;", nil, nil, nil)
+        defer {
+            _ = sqlite3_exec(db, "DETACH DATABASE bundled;", nil, nil, nil)
+        }
 
-        // Note: we deliberately do NOT manually insert into words_fts here —
-        // the AFTER INSERT trigger handles new rows, and createSchemaIfNeeded()
-        // backfills any pre-existing rows that were missing from FTS.
+        try exec("BEGIN IMMEDIATE;")
+        try exec("DROP TRIGGER IF EXISTS words_ai;")
+        try exec("DROP TRIGGER IF EXISTS words_au;")
+        try exec("DROP TRIGGER IF EXISTS words_ad;")
+        try exec("DROP TABLE  IF EXISTS words_fts;")
+        try exec("DROP TABLE  IF EXISTS words;")
+        try exec("""
+        CREATE TABLE words(
+          id         TEXT PRIMARY KEY,
+          ru         TEXT NOT NULL,
+          en         TEXT NOT NULL,
+          meaning_en TEXT,
+          phonetic   TEXT,
+          ru_norm    TEXT NOT NULL DEFAULT '',
+          en_norm    TEXT NOT NULL DEFAULT '',
+          is_common  INTEGER NOT NULL DEFAULT 0
+        );
+        """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_words_is_common ON words(is_common) WHERE is_common = 1;")
+        try exec("""
+        INSERT INTO words(id, ru, en, meaning_en, phonetic,
+                          ru_norm, en_norm, is_common)
+        SELECT id, ru, en, meaning_en, phonetic,
+               ru_norm, en_norm, is_common
+        FROM bundled.words;
+        """)
+        try exec("""
+        CREATE VIRTUAL TABLE words_fts USING fts5(
+          id UNINDEXED,
+          ru,
+          en,
+          tokenize = 'unicode61'
+        );
+        """)
+        try exec("""
+        INSERT INTO words_fts(id, ru, en)
+        SELECT id, ru_norm, en_norm FROM words;
+        """)
+        try exec("""
+        CREATE TABLE IF NOT EXISTS dictionary_version(value INTEGER NOT NULL);
+        """)
+        try exec("DELETE FROM dictionary_version;")
+        try exec("INSERT INTO dictionary_version(value) VALUES (\(targetVersion));")
+        try exec("COMMIT;")
+
+        // Foreign keys were off across the swap, so any used_words /
+        // scheduled_pushes / recent_views row whose word_id is no longer in
+        // the new dictionary is now dangling. Clean those up explicitly so
+        // the user doesn't see "ghost" entries on Manage Used Words.
+        try exec("""
+        DELETE FROM used_words
+        WHERE word_id NOT IN (SELECT id FROM words);
+        """)
+        try exec("""
+        DELETE FROM scheduled_pushes
+        WHERE word_id NOT IN (SELECT id FROM words);
+        """)
+        try exec("""
+        DELETE FROM recent_views
+        WHERE word_id NOT IN (SELECT id FROM words);
+        """)
+    }
+
+    private func readDictionaryVersion() -> Int {
+        guard let db else { return 0 }
+        var stmt: OpaquePointer?
+        let sql = "SELECT value FROM dictionary_version LIMIT 1;"
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
+        defer { sqlite3_finalize(stmt) }
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return Int(sqlite3_column_int(stmt, 0))
+        }
+        return 0
     }
 
     private func databaseURL() throws -> URL {

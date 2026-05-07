@@ -8,12 +8,22 @@ struct SettingsView: View {
     @State private var showExhaustedAlert = false
     @State private var showDeniedAlert = false
     @State private var showAppliedAlert = false
-    @State private var lastAppliedCount = 0
-    @State private var lastBufferCount = 0
+    @State private var showResetConfirm = false
     @State private var isApplying = false
 
     var body: some View {
         Form {
+            Section {
+                PronunciationSpeedControl(
+                    value: Binding(
+                        get: { settings.pronunciationRateScale },
+                        set: { settings.pronunciationRateScale = AppSettings.snapPronunciationRateScale($0) }
+                    )
+                )
+            } header: {
+                Text("Pronunciation")
+            }
+
             Section("Notifications") {
                 Stepper(value: $settings.pushCountPerDay, in: 1...5) {
                     Text("Pushes per day: \(settings.pushCountPerDay)")
@@ -51,10 +61,22 @@ struct SettingsView: View {
             }
 
             Section("Dictionary") {
+                NavigationLink(value: AppRoute.usedWords) {
+                    Text("Manage already used words")
+                }
+
                 Button(role: .destructive) {
-                    Task { await resetUsedWords() }
+                    showResetConfirm = true
                 } label: {
                     Text("Reset already used words")
+                }
+                .alert("Reset already used words?", isPresented: $showResetConfirm) {
+                    Button("Reset", role: .destructive) {
+                        Task { await resetUsedWords() }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This action cannot be reversed, are you sure?")
                 }
             }
         }
@@ -70,14 +92,8 @@ struct SettingsView: View {
         } message: {
             Text("Notifications are denied or couldn’t be scheduled. Check Settings → Notifications for this app.")
         }
-        .alert("Schedule updated", isPresented: $showAppliedAlert) {
+        .alert("Schedule successfully updated!", isPresented: $showAppliedAlert) {
             Button("OK", role: .cancel) {}
-        } message: {
-            if lastAppliedCount > 0 {
-                Text("Queued \(lastAppliedCount) new notification\(lastAppliedCount == 1 ? "" : "s"). Buffer now contains \(lastBufferCount) upcoming push\(lastBufferCount == 1 ? "" : "es").")
-            } else {
-                Text("Buffer is up to date with \(lastBufferCount) upcoming push\(lastBufferCount == 1 ? "" : "es").")
-            }
         }
     }
 
@@ -95,8 +111,6 @@ struct SettingsView: View {
                 showExhaustedAlert = true
                 return
             }
-            lastAppliedCount = result.addedCount
-            lastBufferCount = result.bufferCount
             showAppliedAlert = true
         } catch {
             showDeniedAlert = true

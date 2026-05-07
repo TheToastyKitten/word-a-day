@@ -23,7 +23,7 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: RussianWordOfDayApp/Sources
-      - path: RussianWordOfDayApp/Resources/words.seed.json
+      - path: RussianWordOfDayApp/Resources/dictionary.sqlite
         buildPhase: resources
       - path: RussianWordOfDayApp/Resources/Assets.xcassets
         buildPhase: resources

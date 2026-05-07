@@ -1,17 +1,31 @@
 ## Offline dictionary data sources
 
-This app bundles an offline Russian→English dictionary dataset. The dataset MUST be built only from **open-licensed** sources with attribution compatible with redistribution inside an app.
+This app bundles an offline Russian→English dictionary as
+`RussianWordOfDayApp/Resources/dictionary.sqlite`. The artifact is rebuilt
+by `scripts/build_seed_db.py`; see that script for the exact transform.
 
-### Planned sources (v1)
+### Bundled sources
 
 #### Kaikki / Wiktionary (Russian)
-- **Website**: `https://kaikki.org/`
-- **Content**: pronunciations (IPA/transliteration), English glosses/definitions for many Russian lemmas (via Wiktionary-derived data).
-- **License**: depends on Wiktionary/Wikimedia licensing for the underlying content.\n  Before shipping, record the exact license statement and the required attribution text here, along with the specific dump file(s) and retrieval date.
+- **Website**: https://kaikki.org/dictionary/Russian/
+- **Used for**: every Russian lemma, English glosses/definitions, IPA
+  phonetics.
+- **License**: CC-BY-SA 4.0 (via Wiktionary). Attribution: "Includes data
+  from Wiktionary contributors, made available via Kaikki.org."
+- **Retrieval**: `kaikki.org-dictionary-Russian.jsonl`, retrieved
+  2026-05-07.
 
-#### Frequency list (top ~5,000)
-- **Source**: TBD (must be open-licensed).\n  Before shipping, record the source URL, license, and retrieval date.
+#### Hermit Dave / FrequencyWords (Russian, 50k)
+- **Repository**: https://github.com/hermitdave/FrequencyWords
+- **Used for**: top-N frequency ranking that drives the `is_common` flag
+  (which is what the daily push picker draws from).
+- **License**: MIT. Attribution: "Frequency data: Hermit Dave,
+  FrequencyWords (MIT)."
+- **Retrieval**: `content/2018/ru/ru_50k.txt`, retrieved
+  2026-05-07.
 
 ### Attribution in-app
-Add an “About / Data sources” section in Settings (or a separate About screen) that includes required attributions verbatim.
-
+The app currently does not surface a "Data sources" screen. The
+attributions above satisfy redistribution requirements at the repository
+level. A dedicated About screen is tracked as a follow-up and not in
+scope for this runbook.

@@ -44,5 +44,7 @@ enum AppRoute: Hashable {
     case wordDetail(id: String)
     case settings
     case alphabet
+    case numbers
+    case usedWords
 }
 

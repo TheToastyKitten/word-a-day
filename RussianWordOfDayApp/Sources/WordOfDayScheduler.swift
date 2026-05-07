@@ -42,8 +42,10 @@ final class WordOfDayScheduler: ObservableObject {
     ) async throws -> Result {
         settings.normalizeTimesToPushCount()
 
-        // Drop expired rows so the count math is honest.
-        store.purgePastScheduledPushes(now: now)
+        // Promote any fired pushes to used_words and drop those rows so the
+        // count math is honest. This is also our deferred-"used" hook: a push
+        // that fired since the last call lands in used_words here.
+        store.promoteFiredPushesAndPurge(now: now)
 
         let allowed = try await NotificationManager.shared.requestAuthorizationIfNeeded()
         let preexisting = store.futureScheduledPushCount(now: now)
@@ -99,10 +101,10 @@ final class WordOfDayScheduler: ObservableObject {
                 added += 1
                 current += 1
             } catch {
-                // The DB row was already committed (and the word marked used).
+                // The DB row was already committed (word reserved in scheduled_pushes).
                 // Bail rather than diverge from iOS — the next top-up will see
-                // the orphan row, the past-purge will clean it once fire_at
-                // elapses, and the user keeps their pool integrity.
+                // the orphan row, promoteFiredPushesAndPurge will clean it once
+                // fire_at elapses, and the user keeps their pool integrity.
                 throw error
             }
         }
@@ -120,8 +122,8 @@ final class WordOfDayScheduler: ObservableObject {
     /// `pushCountPerDay` or `pushTimesSeconds` — the existing fire times no
     /// longer match the new schedule and need to be rebuilt.
     ///
-    /// Words already committed to the old buffer remain in `used_words` (so
-    /// they won't repeat). Only `Reset already used words` brings them back.
+    /// Words that were only reserved (never fired) are released back into the
+    /// pool. Only actually-fired words (promoted to `used_words`) won't repeat.
     @discardableResult
     func rebuildAfterSettingsChange(
         settings: AppSettings,

@@ -12,8 +12,12 @@ struct RootView: View {
                         SettingsView()
                     case .alphabet:
                         AlphabetView()
+                    case .numbers:
+                        NumbersView()
                     case .wordDetail(let id):
                         WordDetailView(wordID: id)
+                    case .usedWords:
+                        ManageUsedWordsView()
                     }
                 }
         }
