@@ -100,6 +100,7 @@ final class WordOfDayScheduler: ObservableObject {
                 )
                 added += 1
                 current += 1
+                await Task.yield()
             } catch {
                 // The DB row was already committed (word reserved in scheduled_pushes).
                 // Bail rather than diverge from iOS — the next top-up will see

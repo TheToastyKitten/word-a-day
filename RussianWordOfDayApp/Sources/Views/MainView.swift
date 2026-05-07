@@ -32,6 +32,18 @@ struct MainView: View {
 
                     Spacer()
                 }
+
+                if !store.isReady {
+                    Color(uiColor: .systemBackground)
+                        .ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Loading dictionary…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)

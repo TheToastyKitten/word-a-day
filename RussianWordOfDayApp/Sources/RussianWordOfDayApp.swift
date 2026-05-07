@@ -21,7 +21,8 @@ struct RussianWordOfDayApp: App {
                     appDelegate.router = router
                     appDelegate.drainPendingWordID(into: router)
                     await store.ensureSeededIfNeeded()
-                    await topUpBuffer()
+                    // Don’t gate first frame on scheduling up to 60 notifications; foreground also top-ups.
+                    Task { await topUpBuffer() }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {

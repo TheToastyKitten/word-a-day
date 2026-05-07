@@ -81,9 +81,16 @@ final class RussianHeadwordSpeaker: NSObject, ObservableObject {
         if let voice = Self.preferredRussianVoice() {
             utterance.voice = voice
             voiceSummary = "\(voice.name), \(voice.language)"
+        } else if let fallback = AVSpeechSynthesisVoice(language: "ru-RU") {
+            utterance.voice = fallback
+            voiceSummary = "\(fallback.name), \(fallback.language)"
         } else {
-            voiceSummary = "Russian voice unavailable; add one in Settings → Accessibility → Spoken Content"
+            voiceSummary = "Russian voice unavailable; add Russian under Settings → Accessibility → Read & Speak or VoiceOver → Speech → Voices"
         }
+
+        Self.activatePlaybackSessionForSpeech()
+
+        utterance.volume = 1
 
         activeNormalizedText = text
         isSpeaking = true
@@ -102,27 +109,48 @@ final class RussianHeadwordSpeaker: NSObject, ObservableObject {
         }
         isSpeaking = false
         activeNormalizedText = nil
+        Self.deactivatePlaybackSessionAfterSpeechIdle(synthesizer: synthesizer)
+    }
+
+    /// Real devices typically need an explicit playback session before `AVSpeechUtterance` is audible (Simulator often “just works”).
+    private static func activatePlaybackSessionForSpeech() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try session.setActive(true)
+        } catch {
+            try? session.setCategory(.playback, mode: .default, options: [.duckOthers])
+            try? session.setActive(true)
+        }
+    }
+
+    private static func deactivatePlaybackSessionAfterSpeechIdle(synthesizer: AVSpeechSynthesizer) {
+        guard !synthesizer.isSpeaking else { return }
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: [.notifyOthersOnDeactivation])
     }
 }
 
 extension RussianHeadwordSpeaker: AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(
-        _: AVSpeechSynthesizer,
+        _ synth: AVSpeechSynthesizer,
         didFinish _: AVSpeechUtterance
     ) {
         Task { @MainActor in
             isSpeaking = false
             activeNormalizedText = nil
+            Self.deactivatePlaybackSessionAfterSpeechIdle(synthesizer: synth)
         }
     }
 
     nonisolated func speechSynthesizer(
-        _: AVSpeechSynthesizer,
+        _ synth: AVSpeechSynthesizer,
         didCancel _: AVSpeechUtterance
     ) {
         Task { @MainActor in
             isSpeaking = false
             activeNormalizedText = nil
+            Self.deactivatePlaybackSessionAfterSpeechIdle(synthesizer: synth)
         }
     }
 }

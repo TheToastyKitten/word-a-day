@@ -24,7 +24,7 @@ final class WordStore: ObservableObject {
 
     func ensureSeededIfNeeded() async {
         do {
-            try installBundledDictionaryIfMissing()
+            try await installBundledDictionaryIfMissing()
             try openOrCreateDatabase()
             try migrateBundledDictionaryIfNeeded()
             try createSchemaIfNeeded()
@@ -630,10 +630,10 @@ final class WordStore: ObservableObject {
     }
 
     /// On a fresh install (no `words.sqlite` in App Support) copies the bundled
-    /// `dictionary.sqlite` directly into the sandbox. The migration step then
-    /// becomes a no-op because the bundled DB already stamps `dictionary_version = 3`.
+    /// `dictionary.sqlite` into the sandbox on a background thread so the UI
+    /// isn’t stalled by ~MB of disk I/O. Uses a `.partial` temp file + move.
     /// On an existing install this is a no-op and the migration runs instead.
-    private func installBundledDictionaryIfMissing() throws {
+    private func installBundledDictionaryIfMissing() async throws {
         let url = try databaseURL()
         let fm = FileManager.default
         if fm.fileExists(atPath: url.path) {
@@ -643,15 +643,29 @@ final class WordStore: ObservableObject {
             forResource: bundledDictionaryName,
             withExtension: bundledDictionaryExtension
         ) else {
-            // Allowed (dev builds may run without the asset). The migration
-            // step will then leave the user with an empty `words` table.
             return
         }
         try fm.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try fm.copyItem(at: bundled, to: url)
+
+        let parent = url.deletingLastPathComponent()
+        let tempURL = parent.appendingPathComponent("\(dbFileName).partial", isDirectory: false)
+
+        try await Task.detached(priority: .userInitiated) {
+            let fm = FileManager.default
+            if fm.fileExists(atPath: url.path) { return }
+
+            try? fm.removeItem(at: tempURL)
+            try fm.copyItem(at: bundled, to: tempURL)
+
+            if fm.fileExists(atPath: url.path) {
+                try? fm.removeItem(at: tempURL)
+                return
+            }
+            try fm.moveItem(at: tempURL, to: url)
+        }.value
     }
 
     /// Reads the user's `dictionary_version`; if the table is missing or the

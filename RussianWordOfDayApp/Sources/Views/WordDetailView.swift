@@ -118,7 +118,11 @@ struct WordDetailView: View {
             .disabled(settings.pronunciationRateScale <= 0)
 
             if !RussianHeadwordSpeaker.hasListedRussianVoice {
-                Text("If you hear the wrong language or silence, add a Russian voice under Settings → Accessibility → Spoken Content.")
+                Text(
+                    "If you hear the wrong language or silence, download a Russian voice under "
+                        + "Settings → Accessibility → Read & Speak (some iOS versions) or Spoken Content, tap Voices → Russian. "
+                        + "Or: Settings → Accessibility → VoiceOver → Speech → Voices → Russian."
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
