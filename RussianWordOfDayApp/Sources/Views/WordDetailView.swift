@@ -86,6 +86,7 @@ struct WordDetailView: View {
         }
     }
 
+    @ViewBuilder
     private func meaningSection(word: WordEntry) -> some View {
         let headline = word.english.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
@@ -100,41 +101,48 @@ struct WordDetailView: View {
             .filter { !$0.isEmpty }
             .filter { $0.lowercased() != headline } ?? []
 
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Meaning")
-                .font(.headline)
+        let distinctMeaning: String? = {
+            guard let m = word.meaning_en else { return nil }
+            let t = m.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !t.isEmpty, t.lowercased() != headline else { return nil }
+            return t
+        }()
 
-            if !enriched.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(enriched.prefix(Self.meaningLineDisplayLimit).enumerated()), id: \.offset) { idx, line in
-                        HStack(alignment: .top, spacing: 10) {
-                            Text("\(idx + 1).")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            meaningLine(line)
+        if enriched.isEmpty && glossLines.isEmpty && distinctMeaning == nil {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Meaning")
+                    .font(.headline)
+
+                if !enriched.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(enriched.prefix(Self.meaningLineDisplayLimit).enumerated()), id: \.offset) { idx, line in
+                            HStack(alignment: .top, spacing: 10) {
+                                Text("\(idx + 1).")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                meaningLine(line)
+                            }
                         }
                     }
-                }
-            } else if !glossLines.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(glossLines.prefix(Self.meaningLineDisplayLimit).enumerated()), id: \.offset) { idx, line in
-                        HStack(alignment: .top, spacing: 10) {
-                            Text("\(idx + 1).")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            meaningLine(line)
+                } else if !glossLines.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(glossLines.prefix(Self.meaningLineDisplayLimit).enumerated()), id: \.offset) { idx, line in
+                            HStack(alignment: .top, spacing: 10) {
+                                Text("\(idx + 1).")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                meaningLine(line)
+                            }
                         }
                     }
+                } else if let m = distinctMeaning {
+                    meaningLine(m)
                 }
-            } else if let meaning = word.meaning_en, !meaning.isEmpty {
-                let trimmed = meaning.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty, trimmed.lowercased() != headline {
-                    meaningLine(trimmed)
-                }
-                // else: meaning duplicates headline; omit to avoid repetition
             }
+            .padding(.top, 4)
         }
-        .padding(.top, 4)
     }
 
     @ViewBuilder

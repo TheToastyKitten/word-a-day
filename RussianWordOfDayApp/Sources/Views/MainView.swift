@@ -354,10 +354,15 @@ struct MainView: View {
     }
 
     private func dropdownSnippet(for entry: WordEntry) -> String? {
+        let headlineNorm = entry.english
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
         if let enriched = enrichmentByID[entry.id] {
             for def in enriched.definitions {
                 let t = def.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !t.isEmpty else { continue }
+                if t.lowercased() == headlineNorm { continue }
                 if snippetIsPlausibleForEntry(t, entry: entry) {
                     return t
                 }
