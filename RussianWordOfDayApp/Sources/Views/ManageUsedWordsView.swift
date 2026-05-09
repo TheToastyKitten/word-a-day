@@ -2,6 +2,7 @@ import SwiftUI
 import UserNotifications
 
 struct ManageUsedWordsView: View {
+    @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: WordStore
     @EnvironmentObject private var settings: AppSettings
     @State private var entries: [UsedWord] = []
@@ -96,6 +97,10 @@ struct ManageUsedWordsView: View {
             addBackButton(for: entry)
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            router.path.append(.wordDetail(id: entry.id))
+        }
     }
 
     @ViewBuilder

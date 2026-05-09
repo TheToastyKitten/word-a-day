@@ -847,6 +847,11 @@ final class WordStore: ObservableObject {
     private func applyKnownDictionaryFixesIfNeeded() throws {
         guard let db else { return }
 
+        // NOTE: We intentionally avoid broad runtime scrubs (e.g. deleting
+        // inflected-form headwords) because they can add noticeable startup cost.
+        // Instead, those are removed at build-time from the bundled dictionary,
+        // and shipped via dictionary_version migrations.
+
         // Fix: bundled dictionary currently contains `помочь` as a noun ("belt"),
         // but for our app we want the common verb sense ("to help").
         // Apply as an in-place correction in the user's sandbox DB so we don't
@@ -928,7 +933,7 @@ final class WordStore: ObservableObject {
         guard let db else { return }
 
         let currentVersion = readDictionaryVersion()
-        let targetVersion: Int = 12
+        let targetVersion: Int = 15
         if currentVersion >= targetVersion {
             return
         }

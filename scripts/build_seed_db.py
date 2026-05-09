@@ -43,7 +43,7 @@ MAX_GLOSS_LEN = 60
 MAX_MEANING_LEN = 200
 MAX_GLOSSES = 5
 MEANING_GLOSSES_LIMIT = 4
-DICTIONARY_VERSION = 12
+DICTIONARY_VERSION = 15
 # Floors lowered vs old unrestricted builds (~30k+): lexical POS excludes
 # function-word lemmas Kaikki tags as particle/prep/det/pron/… .
 MIN_ENTRIES = 25_000
@@ -252,6 +252,48 @@ HARD_GRAMMAR_GLOSS_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?is)\binfinitive\s+.*\bof\b"),
     re.compile(r"(?is)\bverbal noun\s+.*\bof\b"),
     re.compile(r"(?is)\bimperative\b.*\bof\b"),
+    # Case-form headwords (людям → "dative of люди", etc.). These are inflected
+    # forms, not learner dictionary lemmas.
+    re.compile(
+        r"(?is)\b(?:dative|genitive|accusative|instrumental|prepositional|locative|vocative|ablative)\b.*\bof\b"
+    ),
+    # Same, but some headlines are truncated before “of …” when we shorten `en`
+    # to MAX_GLOSS_LEN. Treat any gloss that *starts* with these morphology case
+    # keywords as non-lemma (very unlikely to be a real definition).
+    re.compile(
+        r"(?is)^(?:genitive|dative|accusative|instrumental|prepositional|locative|vocative|ablative|nominative)\b"
+    ),
+    # Many inflection heads start with gender (or gender list) then list cases:
+    #   "feminine genitive/dative/instrumental/prepositional singular …"
+    #   "masculine/neuter dative singular of …"
+    # Treat these as inflected-form heads even if “of …” is truncated.
+    re.compile(
+        r"(?is)\b(?:masculine|feminine|neuter)\b[^\n]{0,120}\b(?:"
+        r"genitive|dative|accusative|instrumental|prepositional|locative|vocative|ablative|nominative"
+        r")\b"
+    ),
+    re.compile(r"(?is)\b(?:singular|plural)\b[^\n]{0,120}\b(?:genitive|dative|accusative|instrumental|prepositional|locative|vocative|ablative|nominative)\b"),
+    # Other common inflection-style headwords (plural/tense/degree/etc.).
+    re.compile(
+        r"(?is)\b(?:nominative|plural|singular|past|present|future|comparative|superlative)\b.*\bof\b"
+    ),
+    # Truncated variants without “of …”.
+    re.compile(r"(?is)^(?:plural|singular|comparative|superlative)\b"),
+    # Russian "short-form adjective" heads often show up as:
+    #   "short masculine singular of уверенный"
+    #   "short feminine singular of …"
+    #   "short plural of …"
+    # These are inflected forms, not lemmas.
+    re.compile(
+        r"(?is)\bshort\b(?:\s+(?:masculine|feminine|neuter|plural))?"
+        r"(?:\s+(?:singular|plural))?\s+\bof\b"
+    ),
+    # Truncated short-form adjective heads without “of …”.
+    re.compile(
+        r"(?is)^short\b(?:\s+(?:masculine|feminine|neuter|plural))?"
+        r"(?:\s+(?:singular|plural))?\b"
+    ),
+    re.compile(r"(?is)\bshort\s+form\s+of\b"),
     re.compile(r"(?is)^(\s*)Romanization\b"),
 )
 
