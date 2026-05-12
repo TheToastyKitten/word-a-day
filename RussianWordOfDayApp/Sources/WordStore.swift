@@ -36,6 +36,31 @@ final class WordStore: ObservableObject {
     private static let allowedPOSClause: String =
         "AND (w.pos IS NOT NULL AND lower(trim(w.pos)) IN (\(allowedPOS.map { _ in "?" }.joined(separator: ", "))))"
 
+    /// Wiktionary-style English lines that describe an inflected form ("past indicative of …")
+    /// rather than a learner gloss. Search hides these so prefix lookup surfaces lemmas.
+    private static let morphEnglishSearchPatterns: [NSRegularExpression] = {
+        let raw: [String] = [
+            #"(?i)\bindicative\b.*\bof\b"#,
+            #"(?i)\bsubjunctive\b.*\bof\b"#,
+            #"(?i)\bconditional\b.{0,40}\bof\b"#,
+            #"(?i)\bpast\s+tense\b.*\bof\b"#,
+            #"(?i)\bsimple\s+past\b.*\bof\b"#,
+            #"(?i)\bpast\s+historic\b.*\bof\b"#,
+            // Truncated before " of lemma"
+            #"(?i)^(?:masculine|feminine|neuter)\b.{0,180}\b(?:past|present|future)\s+indicative\b"#,
+            // Overlap with seed script heuristics (safety net for older bundles)
+            #"(?i)\b(?:dative|genitive|accusative|instrumental|prepositional|locative|vocative|ablative)\b.*\bof\b"#,
+            #"(?i)\bgerund\b.*\bof\b"#,
+            #"(?i)\bimperative\b.*\bof\b"#,
+            #"(?i)\binfinitive\b.*\bof\b"#,
+            #"(?i)\brelational\s+adjective\b.*\bof\b"#,
+            #"(?i)\bpossessive\s+adjective\b.*\bof\b"#,
+            #"(?i)^(?:masculine|feminine|neuter)\b.{0,160}\brelational\s+adjective\b"#,
+            #"(?i)\binflection\s+of\b"#,
+        ]
+        return raw.compactMap { try? NSRegularExpression(pattern: $0, options: []) }
+    }()
+
     deinit {
         if let db {
             sqlite3_close(db)
@@ -105,11 +130,17 @@ final class WordStore: ObservableObject {
             sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
             bindIndex += 1
         }
-        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
+        // Pull extra candidates so we can drop inflection-definition rows (English
+        // morphology like "past indicative … of …") and still fill `limit`.
+        let fetchCap = min(max(limit * 12, limit + 8), 120)
+        sqlite3_bind_int(stmt, bindIndex, Int32(fetchCap))
 
         var out: [WordEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            out.append(rowToWord(stmt))
+            let w = rowToWord(stmt)
+            if Self.englishLooksLikeMorphSearchNoise(w.english) { continue }
+            out.append(w)
+            if out.count >= limit { break }
         }
         return out
     }
@@ -337,6 +368,83 @@ final class WordStore: ObservableObject {
             out.append(UsedWord(word: word, usedAt: usedAt))
         }
         return out
+    }
+
+    // MARK: - Self quiz (used-word pool)
+
+    /// Used words in random order (up to `limit`) for the self-quiz.
+    func randomUsedWordsForQuiz(limit: Int = 10) -> [WordEntry] {
+        guard let db else { return [] }
+        let sql = """
+        SELECT w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic
+        FROM used_words u
+        JOIN words w ON w.id = u.word_id
+        WHERE 1 = 1
+        \(Self.allowedPOSClause)
+        ORDER BY RANDOM()
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
+
+        var out: [WordEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            out.append(rowToWord(stmt))
+        }
+        return out
+    }
+
+    /// Primary English glosses from random dictionary rows for quiz distractors.
+    /// Skips blank `en`, de-duplicates by `normalizeForIndex`, and omits strings whose
+    /// normalized form appears in `excludingNormalized`.
+    func randomEnglishQuizDistractorCandidates(
+        excludingNormalized: Set<String>,
+        maxToScan: Int = 400,
+        maxCollected: Int = 80
+    ) -> [String] {
+        guard let db else { return [] }
+        let cap = max(40, min(maxToScan, 2_000))
+        let sql = """
+        SELECT w.en
+        FROM words w
+        WHERE trim(w.en) != ''
+        \(Self.allowedPOSClause)
+        ORDER BY RANDOM()
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(cap))
+
+        var collected: [String] = []
+        var seenNorm: Set<String> = []
+        let want = max(1, min(maxCollected, 200))
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let raw = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? ""
+            let display = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !display.isEmpty else { continue }
+            let key = normalizeForIndex(display)
+            guard !key.isEmpty else { continue }
+            if excludingNormalized.contains(key) { continue }
+            if seenNorm.contains(key) { continue }
+            seenNorm.insert(key)
+            collected.append(display)
+            if collected.count >= want { break }
+        }
+        return collected
     }
 
     /// Returns true if the word is currently marked used. Useful for an
@@ -933,7 +1041,7 @@ final class WordStore: ObservableObject {
         guard let db else { return }
 
         let currentVersion = readDictionaryVersion()
-        let targetVersion: Int = 15
+        let targetVersion: Int = 18
         if currentVersion >= targetVersion {
             return
         }
@@ -1070,6 +1178,19 @@ final class WordStore: ObservableObject {
             .replacingOccurrences(of: "ё", with: "е")
             .replacingOccurrences(of: "\u{0301}", with: "") // combining acute (stress mark)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// True when the primary English line is Wiktionary morphology, not a dictionary gloss.
+    private static func englishLooksLikeMorphSearchNoise(_ s: String) -> Bool {
+        let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard t.utf16.count >= 10 else { return false }
+        let range = NSRange(location: 0, length: (t as NSString).length)
+        for rx in morphEnglishSearchPatterns {
+            if rx.firstMatch(in: t, options: [], range: range) != nil {
+                return true
+            }
+        }
+        return false
     }
 
     /// Strip characters that are syntactically meaningful inside an FTS5 MATCH

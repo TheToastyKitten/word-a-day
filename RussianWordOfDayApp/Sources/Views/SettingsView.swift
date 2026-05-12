@@ -65,6 +65,11 @@ struct SettingsView: View {
                     Text("Manage already used words")
                 }
 
+                NavigationLink(value: AppRoute.quiz) {
+                    Text("Quiz Yourself")
+                }
+                .disabled(store.usedWordCount() < 1)
+
                 Button(role: .destructive) {
                     showResetConfirm = true
                 } label: {

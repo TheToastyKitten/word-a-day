@@ -15,6 +15,7 @@
 		4175BB028AD561B21F05E7AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 62ABDADFEC80A7711A84E2BE /* Assets.xcassets */; };
 		445DCA801C69CAA879944A0D /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */; };
 		4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */; };
+		7C4E2A901B3C4D5E6F708193 /* QuizYourselfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E2A901B3C4D5E6F708192 /* QuizYourselfView.swift */; };
 		8603D2C41C866AC18A5DE55D /* dictionary.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 4D48EFC6A3F04D78EFFDD0BA /* dictionary.sqlite */; };
 		8877B42FD327C899BFC8DBD2 /* YandexDictionaryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538BB91B953533C8A3B06EB7 /* YandexDictionaryClient.swift */; };
 		91363713046B15B648A97D78 /* WordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33212C89C1013DFB8B90080 /* WordStore.swift */; };
@@ -45,8 +46,9 @@
 		57754C3D36FB0ECE36CF07B5 /* RussianWordOfDayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianWordOfDayApp.swift; sourceTree = "<group>"; };
 		62ABDADFEC80A7711A84E2BE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		71CA3F76A69ECD8D41E19EEF /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		7C4E2A901B3C4D5E6F708192 /* QuizYourselfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizYourselfView.swift; sourceTree = "<group>"; };
 		80AA771D8F8EDC1F3FCC86D4 /* RussianHeadwordSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianHeadwordSpeaker.swift; sourceTree = "<group>"; };
-		9120D66EDE81921A5C14FA10 /* RussianWordOfDay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = RussianWordOfDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9120D66EDE81921A5C14FA10 /* RussianWordOfDay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RussianWordOfDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6A08BBBFDBF5FE2985BE32D /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
 		C1D6197B8F8DACE6A59855E1 /* ManageUsedWordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageUsedWordsView.swift; sourceTree = "<group>"; };
 		D082FBCBAD59AF3B6D6CA558 /* NumbersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumbersView.swift; sourceTree = "<group>"; };
@@ -64,6 +66,7 @@
 				C1D6197B8F8DACE6A59855E1 /* ManageUsedWordsView.swift */,
 				D082FBCBAD59AF3B6D6CA558 /* NumbersView.swift */,
 				12CC3E4B17DBB39B87B21E57 /* PronunciationSpeedControl.swift */,
+				7C4E2A901B3C4D5E6F708192 /* QuizYourselfView.swift */,
 				22E9E024F7B2871C9251E8ED /* RootView.swift */,
 				24EAE80D230DAE4A4BCCC0BA /* SettingsView.swift */,
 				293787A43EC974A5B4771035 /* WordDetailView.swift */,
@@ -152,10 +155,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					A0F12C72249C00DE5F0B872D = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -211,6 +213,7 @@
 				310A0834DFBEF0B70A0C9BA3 /* RussianHeadwordSpeaker.swift in Sources */,
 				D9CAAD359E4CA6359EEF480C /* RussianWordOfDayApp.swift in Sources */,
 				4B46893CF4952C236BB0723E /* SettingsView.swift in Sources */,
+				7C4E2A901B3C4D5E6F708193 /* QuizYourselfView.swift in Sources */,
 				8877B42FD327C899BFC8DBD2 /* YandexDictionaryClient.swift in Sources */,
 				EB7395F553CFFB16BFCA1B98 /* WordDetailView.swift in Sources */,
 				AAEB666EF11C04CE80F25955 /* WordOfDayScheduler.swift in Sources */,
@@ -277,10 +280,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = KDD2AT7TGH;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -301,6 +305,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -364,10 +369,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = KDD2AT7TGH;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -381,6 +387,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

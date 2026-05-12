@@ -20,6 +20,8 @@ struct RootView: View {
                             WordDetailView(wordID: id)
                         case .usedWords:
                             ManageUsedWordsView()
+                        case .quiz:
+                            QuizYourselfView()
                         }
                     }
             }

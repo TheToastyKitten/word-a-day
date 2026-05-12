@@ -59,5 +59,6 @@ enum AppRoute: Hashable {
     case alphabet
     case numbers
     case usedWords
+    case quiz
 }
 

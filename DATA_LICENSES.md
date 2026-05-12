@@ -4,6 +4,9 @@ This app bundles an offline Russian→English dictionary as
 `RussianWordOfDayApp/Resources/dictionary.sqlite`. The artifact is rebuilt
 by `scripts/build_seed_db.py`; see that script for the exact transform.
 
+A **trimming baseline** (snapshot for resetting before further dictionary cleanup)
+is kept at `data/dictionary.base.sqlite` and is not part of the app bundle.
+
 ### Bundled sources
 
 #### Kaikki / Wiktionary (Russian)

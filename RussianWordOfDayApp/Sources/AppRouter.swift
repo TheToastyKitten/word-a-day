@@ -26,5 +26,9 @@ final class AppRouter: ObservableObject {
     func openUsedWords() {
         path.append(.usedWords)
     }
+
+    func openQuiz() {
+        path.append(.quiz)
+    }
 }
 

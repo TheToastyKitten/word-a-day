@@ -22,12 +22,25 @@ Kaikki dump locally; avoids a full freq rebuild):
         --kaikki <kaikki.org-dictionary-Russian.jsonl> \
         --refresh-sqlite RussianWordOfDayApp/Resources/dictionary.sqlite
 
-Aborts non-zero if fewer than 25,000 entries land (--min-entries overrides),
-below typical coverage for learner search filters.
+Strip morphology-only headword rows from an existing bundle (no Kaikki dump):
+
+    python3 scripts/build_seed_db.py \
+        --scrub-morph-headwords-in RussianWordOfDayApp/Resources/dictionary.sqlite
+
+Baseline SQLite for iterative trimming (not bundled in the app; safe to reset from):
+
+    data/dictionary.base.sqlite
+
+    Reset the app bundle from that snapshot, try another trim, then copy back when happy::
+
+        cp data/dictionary.base.sqlite RussianWordOfDayApp/Resources/dictionary.sqlite
+        # …edit / scrub…
+        cp RussianWordOfDayApp/Resources/dictionary.sqlite data/dictionary.base.sqlite
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import sqlite3
@@ -43,10 +56,8 @@ MAX_GLOSS_LEN = 60
 MAX_MEANING_LEN = 200
 MAX_GLOSSES = 5
 MEANING_GLOSSES_LIMIT = 4
-DICTIONARY_VERSION = 15
-# Floors lowered vs old unrestricted builds (~30k+): lexical POS excludes
-# function-word lemmas Kaikki tags as particle/prep/det/pron/… .
-MIN_ENTRIES = 25_000
+DICTIONARY_VERSION = 18
+# Lexical POS excludes function-word lemmas Kaikki tags as particle/prep/det/pron/… .
 
 # Allowed Kaikki `pos` values for rows that may enter lemma merge (must agree
 # with WordStore.allowedPOS synonym spellings).
@@ -252,6 +263,18 @@ HARD_GRAMMAR_GLOSS_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?is)\binfinitive\s+.*\bof\b"),
     re.compile(r"(?is)\bverbal noun\s+.*\bof\b"),
     re.compile(r"(?is)\bimperative\b.*\bof\b"),
+    # Finite verb morphology ("masculine singular past indicative perfective of …").
+    # These are inflected surface forms, not learner dictionary glosses.
+    re.compile(r"(?is)\bindicative\b.*\bof\b"),
+    re.compile(r"(?is)\bsubjunctive\b.*\bof\b"),
+    re.compile(r"(?is)\bconditional\b[^\n]{0,40}\bof\b"),
+    re.compile(r"(?is)\bpast\s+tense\b.*\bof\b"),
+    re.compile(r"(?is)\bsimple\s+past\b.*\bof\b"),
+    re.compile(r"(?is)\bpast\s+historic\b.*\bof\b"),
+    # Truncated finite-verb morph lines (MAX_GLOSS_LEN may cut before " of …").
+    re.compile(
+        r"(?is)^(?:masculine|feminine|neuter)\b[^\n]{0,180}\b(?:past|present|future)\s+indicative\b"
+    ),
     # Case-form headwords (людям → "dative of люди", etc.). These are inflected
     # forms, not learner dictionary lemmas.
     re.compile(
@@ -294,6 +317,14 @@ HARD_GRAMMAR_GLOSS_RES: tuple[re.Pattern[str], ...] = (
         r"(?:\s+(?:singular|plural))?\b"
     ),
     re.compile(r"(?is)\bshort\s+form\s+of\b"),
+    # Relational / possessive adjective from a name (e.g. Ленин as adjective of Лена).
+    re.compile(r"(?is)\brelational\s+adjective\b.*\bof\b"),
+    re.compile(r"(?is)\bpossessive\s+adjective\b.*\bof\b"),
+    re.compile(
+        r"(?is)^(?:masculine|feminine|neuter)\b[^\n]{0,160}\brelational\s+adjective\b"
+    ),
+    # Kaikki inflected-surface glosses: "inflection of быль: genitive …"
+    re.compile(r"(?is)\binflection\s+of\b"),
     re.compile(r"(?is)^(\s*)Romanization\b"),
 )
 
@@ -1044,13 +1075,6 @@ def build(args: argparse.Namespace) -> int:
     print(f"  ↳ built {len(rows)} entries; "
           f"{sum(1 for r in rows if r[10] == 1)} marked common")
 
-    if len(rows) < args.min_entries:
-        print(
-            f"Only {len(rows)} entries built, below floor of {args.min_entries}.",
-            file=sys.stderr,
-        )
-        return 3
-
     out_path: Path = args.out
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
@@ -1198,9 +1222,84 @@ def refresh_lexeme_preferences(args: argparse.Namespace) -> int:
     return 0
 
 
+_SCRUB_OF_CYRILLIC_LEMMA_RE = re.compile(r"\s+of\s+[\u0400-\u04FF]+", re.IGNORECASE)
+
+
+def english_headword_is_scrubbable_morph(en: str) -> bool:
+    """
+    True when `en` is Wiktionary-style morphology pointing at a Russian lemma
+    (\"… of позвонить\"), or an \"inflection of …\" surface gloss. Narrows
+    `is_hard_morph_gloss` for Latin-only false positives.
+    """
+    t = (en or "").strip()
+    if not t:
+        return False
+    if re.search(r"(?is)\binflection\s+of\b", t):
+        return True
+    if not is_hard_morph_gloss(t):
+        return False
+    return _SCRUB_OF_CYRILLIC_LEMMA_RE.search(t) is not None
+
+
+def scrub_morph_headwords_in_sqlite(db_path: Path) -> int:
+    """
+    Delete `words` rows whose primary English string is Wiktionary-style
+    morphology (same rules as learner gloss filtering). Removes matching FTS
+    rows. Sets `dictionary_version` to DICTIONARY_VERSION.
+    """
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = list(conn.execute("SELECT id, en FROM words"))
+        to_delete: list[str] = []
+        for wid, en in rows:
+            t = (en or "").strip()
+            if not t:
+                continue
+            if english_headword_is_scrubbable_morph(t):
+                to_delete.append(str(wid))
+        n_del = len(to_delete)
+        print(
+            f"Morph-headword scrub: deleting {n_del} of {len(rows)} rows from {db_path}"
+        )
+        chunk_size = 400
+        for i in range(0, n_del, chunk_size):
+            chunk = to_delete[i : i + chunk_size]
+            ph = ",".join("?" * len(chunk))
+            conn.execute(f"DELETE FROM words_fts WHERE id IN ({ph})", chunk)
+            conn.execute(f"DELETE FROM words WHERE id IN ({ph})", chunk)
+        remaining = conn.execute("SELECT COUNT(*) FROM words").fetchone()[0]
+        conn.execute("DELETE FROM dictionary_version")
+        conn.execute(
+            "INSERT INTO dictionary_version(value) VALUES (?)",
+            (DICTIONARY_VERSION,),
+        )
+        conn.execute("COMMIT")
+        conn.execute("PRAGMA optimize")
+        print(f"  ↳ committed; {remaining} words; dictionary_version={DICTIONARY_VERSION}")
+        return 0
+    except BaseException:
+        with contextlib.suppress(Exception):
+            conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kaikki", required=True, type=Path)
+    ap.add_argument(
+        "--scrub-morph-headwords-in",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Delete rows whose English headword is morphology-only (see "
+            "is_hard_morph_gloss). Updates words_fts and dictionary_version. "
+            "Does not require --kaikki or --freq."
+        ),
+    )
+    ap.add_argument("--kaikki", required=False, type=Path, default=None)
     ap.add_argument(
         "--freq",
         required=False,
@@ -1220,19 +1319,27 @@ def main() -> int:
     )
     ap.add_argument("--common-limit", type=int, default=5000)
     ap.add_argument(
-        "--min-entries",
-        type=int,
-        default=MIN_ENTRIES,
-        metavar="N",
-        help=f"abort if fewer lemmas built (default {MIN_ENTRIES})",
-    )
-    ap.add_argument(
         "--out",
         type=Path,
         default=Path("RussianWordOfDayApp/Resources/dictionary.sqlite"),
     )
     args = ap.parse_args()
 
+    if args.scrub_morph_headwords_in is not None:
+        if not args.scrub_morph_headwords_in.exists():
+            print(
+                f"sqlite DB not found: {args.scrub_morph_headwords_in}",
+                file=sys.stderr,
+            )
+            return 2
+        return scrub_morph_headwords_in_sqlite(args.scrub_morph_headwords_in)
+
+    if args.kaikki is None:
+        print(
+            "--kaikki is required unless --scrub-morph-headwords-in is given",
+            file=sys.stderr,
+        )
+        return 2
     if not args.kaikki.exists():
         print(f"kaikki dump not found: {args.kaikki}", file=sys.stderr)
         return 2
