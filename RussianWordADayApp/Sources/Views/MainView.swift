@@ -55,9 +55,12 @@ struct MainView: View {
             Button("Whatever 🙄", role: .cancel) {}
         } message: {
             Text(
-                "This app is a Russian–English dictionary. You can turn on multiple "
+                "This app is a Russian–English dictionary with text-to-speech pronunciation. You can turn on multiple "
                     + "\"daily word\" push notifications and quiz yourself on words you've "
-                    + "already received — all from Settings."
+                    + "already received — all from Settings.\n\n"
+                    + "Tip: Download a Russian voice for pronunciation on your iPhone: "
+                    + "Settings → Accessibility → Read & Speak → Voices → Russian. "
+                    + "(On some iOS versions, Read & Speak is called Spoken Content.)"
             )
         }
     }
