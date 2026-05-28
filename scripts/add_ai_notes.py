@@ -15,7 +15,7 @@ Optional env:
   OPENAI_MODEL      (default: gpt-4.1-mini)
 
 Usage:
-  python3 scripts/add_ai_notes.py --db RussianWordOfDayApp/Resources/dictionary.sqlite --limit 200
+  python3 scripts/add_ai_notes.py --db RussianWordADayApp/Resources/dictionary.sqlite --limit 200
   python3 scripts/add_ai_notes.py --db ... --resume
   python3 scripts/add_ai_notes.py --db ... --dry-run --limit 20
 """

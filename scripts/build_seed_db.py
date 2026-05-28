@@ -1,31 +1,33 @@
 #!/usr/bin/env python3
 """
-Build RussianWordOfDayApp/Resources/dictionary.sqlite from a Kaikki Russian
+Build RussianWordADayApp/Resources/dictionary.sqlite from a Kaikki Russian
 dump and a CC-BY frequency list. Bundled with the app and copied into the
 user's sandbox on first launch by WordStore.installBundledDictionaryIfMissing().
-Lexical merges keep **nouns, verbs, adjectives, adverbs**, and cardinal **numerals**
-(`num`). Function words (pronouns, particles, determiners, prepositions, …) are
-omitted. **WordStore** search and daily-word SQL still allow only **noun/verb/adj/adv**,
-so numerals are used for the Numbers screen and direct lookups, not beginner search filters.
+Lexical merges keep **nouns, verbs, adjectives, adverbs**, cardinal **numerals**
+(`num`), plus high-frequency **particles** and **interjections** (e.g. пожалуйста,
+спасибо), plus **pronouns, prepositions, and conjunctions**. Determiners and other
+function words remain omitted. **WordStore** search includes the same POS set;
+numerals are used for the Numbers screen and direct lookups, not beginner POS chips.
 
-Usage:
+Usage (defaults read build inputs from ../../Assets/RussianWordADay/):
+
     python3 scripts/build_seed_db.py \
-        --kaikki <path-to-kaikki-russian.jsonl> \
-        --freq   <path-to-ru_50k.txt> \
+        [--kaikki <path-to-kaikki-russian.jsonl>] \
+        [--freq   <path-to-ru_50k.txt>] \
         [--common-limit 5000] \
-        [--out RussianWordOfDayApp/Resources/dictionary.sqlite]
+        [--out RussianWordADayApp/Resources/dictionary.sqlite]
 
 Refresh POS / gloss choices for every lemma row in an existing DB (needs the
 Kaikki dump locally; avoids a full freq rebuild):
 
     python3 scripts/build_seed_db.py \
         --kaikki <kaikki.org-dictionary-Russian.jsonl> \
-        --refresh-sqlite RussianWordOfDayApp/Resources/dictionary.sqlite
+        --refresh-sqlite RussianWordADayApp/Resources/dictionary.sqlite
 
 Strip morphology-only headword rows from an existing bundle (no Kaikki dump):
 
     python3 scripts/build_seed_db.py \
-        --scrub-morph-headwords-in RussianWordOfDayApp/Resources/dictionary.sqlite
+        --scrub-morph-headwords-in RussianWordADayApp/Resources/dictionary.sqlite
 
 Baseline SQLite for iterative trimming (not bundled in the app; safe to reset from):
 
@@ -33,9 +35,9 @@ Baseline SQLite for iterative trimming (not bundled in the app; safe to reset fr
 
     Reset the app bundle from that snapshot, try another trim, then copy back when happy::
 
-        cp data/dictionary.base.sqlite RussianWordOfDayApp/Resources/dictionary.sqlite
+        cp data/dictionary.base.sqlite RussianWordADayApp/Resources/dictionary.sqlite
         # …edit / scrub…
-        cp RussianWordOfDayApp/Resources/dictionary.sqlite data/dictionary.base.sqlite
+        cp RussianWordADayApp/Resources/dictionary.sqlite data/dictionary.base.sqlite
 """
 from __future__ import annotations
 
@@ -56,13 +58,30 @@ MAX_GLOSS_LEN = 60
 MAX_MEANING_LEN = 200
 MAX_GLOSSES = 5
 MEANING_GLOSSES_LIMIT = 4
-DICTIONARY_VERSION = 18
-# Lexical POS excludes function-word lemmas Kaikki tags as particle/prep/det/pron/… .
+DICTIONARY_VERSION = 28
+# Lexical POS: content words + everyday function words learners need in speech.
 
 # Allowed Kaikki `pos` values for rows that may enter lemma merge (must agree
 # with WordStore.allowedPOS synonym spellings).
 LEXICAL_BUILD_POS: frozenset[str] = frozenset(
-    ("noun", "verb", "adj", "adjective", "adv", "adverb", "num")
+    (
+        "noun",
+        "verb",
+        "adj",
+        "adjective",
+        "adv",
+        "adverb",
+        "num",
+        "particle",
+        "interjection",
+        "intj",
+        "pron",
+        "pronoun",
+        "prep",
+        "preposition",
+        "conj",
+        "conjunction",
+    )
 )
 
 # English substrings in the *first* lexical gloss for “this headword is chiefly
@@ -334,6 +353,10 @@ ALT_FORM_WITHOUT_MEANING_RE = re.compile(
 )
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+WORKSPACE_ASSETS = PROJECT_ROOT.parent / "Assets" / "RussianWordADay"
+DEFAULT_KAIKKI = WORKSPACE_ASSETS / "kaikki.org-dictionary-Russian.jsonl"
+DEFAULT_FREQ = WORKSPACE_ASSETS / "ru_50k.txt"
 
 
 def is_hard_morph_gloss(text: str) -> bool:
@@ -391,11 +414,13 @@ CREATE TABLE words(
   meaning_en TEXT,
   pos        TEXT,
   glosses_en TEXT,
+  examples_en TEXT,
   ai_note_en TEXT,
   phonetic   TEXT,
   ru_norm    TEXT NOT NULL DEFAULT '',
   en_norm    TEXT NOT NULL DEFAULT '',
-  is_common  INTEGER NOT NULL DEFAULT 0
+  is_common  INTEGER NOT NULL DEFAULT 0,
+  wiktionary_baked INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX idx_words_is_common ON words(is_common) WHERE is_common = 1;
 
@@ -1223,22 +1248,38 @@ def refresh_lexeme_preferences(args: argparse.Namespace) -> int:
 
 
 _SCRUB_OF_CYRILLIC_LEMMA_RE = re.compile(r"\s+of\s+[\u0400-\u04FF]+", re.IGNORECASE)
+_ALT_FORM_HEADWORD_RE = re.compile(r"(?is)^alternative\s+(form|spelling)\s+of\b")
+_TRUNCATED_FINITE_VERB_RE = re.compile(
+    r"(?is)\b(?:masculine|feminine|neuter)\b[^\n]{0,180}\b(?:past|present|future)\s+indicative\b"
+)
+_HEADWORD_CASE_OR_NUMBER_RE = re.compile(
+    r"(?is)^(?:genitive|dative|accusative|instrumental|prepositional|locative|"
+    r"vocative|ablative|nominative|plural|singular|comparative|superlative)\b"
+)
 
 
 def english_headword_is_scrubbable_morph(en: str) -> bool:
     """
     True when `en` is Wiktionary-style morphology pointing at a Russian lemma
-    (\"… of позвонить\"), or an \"inflection of …\" surface gloss. Narrows
-    `is_hard_morph_gloss` for Latin-only false positives.
+    (\"… of позвонить\"), an \"inflection of …\" surface gloss, an alternative
+    spelling head, or a finite-verb/case headline truncated before \" of …\".
     """
     t = (en or "").strip()
     if not t:
         return False
     if re.search(r"(?is)\binflection\s+of\b", t):
         return True
+    if _ALT_FORM_HEADWORD_RE.match(t):
+        return True
     if not is_hard_morph_gloss(t):
         return False
-    return _SCRUB_OF_CYRILLIC_LEMMA_RE.search(t) is not None
+    if _SCRUB_OF_CYRILLIC_LEMMA_RE.search(t):
+        return True
+    if _TRUNCATED_FINITE_VERB_RE.search(t):
+        return True
+    if _HEADWORD_CASE_OR_NUMBER_RE.match(t):
+        return True
+    return False
 
 
 def scrub_morph_headwords_in_sqlite(db_path: Path) -> int:
@@ -1299,12 +1340,19 @@ def main() -> int:
             "Does not require --kaikki or --freq."
         ),
     )
-    ap.add_argument("--kaikki", required=False, type=Path, default=None)
+    ap.add_argument(
+        "--kaikki",
+        required=False,
+        type=Path,
+        default=DEFAULT_KAIKKI,
+        help=f"Kaikki Russian JSONL (default: {DEFAULT_KAIKKI})",
+    )
     ap.add_argument(
         "--freq",
         required=False,
         type=Path,
-        help="frequency list lemma allowlist (not used with --refresh-sqlite)",
+        default=DEFAULT_FREQ,
+        help=f"frequency list lemma allowlist (default: {DEFAULT_FREQ})",
     )
     ap.add_argument(
         "--refresh-sqlite",
@@ -1321,7 +1369,7 @@ def main() -> int:
     ap.add_argument(
         "--out",
         type=Path,
-        default=Path("RussianWordOfDayApp/Resources/dictionary.sqlite"),
+        default=Path("RussianWordADayApp/Resources/dictionary.sqlite"),
     )
     args = ap.parse_args()
 
@@ -1334,9 +1382,10 @@ def main() -> int:
             return 2
         return scrub_morph_headwords_in_sqlite(args.scrub_morph_headwords_in)
 
-    if args.kaikki is None:
+    if args.kaikki is None or not str(args.kaikki):
         print(
-            "--kaikki is required unless --scrub-morph-headwords-in is given",
+            "--kaikki is required unless --scrub-morph-headwords-in is given "
+            f"(default: {DEFAULT_KAIKKI})",
             file=sys.stderr,
         )
         return 2
@@ -1349,8 +1398,11 @@ def main() -> int:
             return 2
         return refresh_lexeme_preferences(args)
 
-    if args.freq is None:
-        print("--freq is required unless --refresh-sqlite is given", file=sys.stderr)
+    if args.freq is None or not str(args.freq):
+        print(
+            f"--freq is required unless --refresh-sqlite is given (default: {DEFAULT_FREQ})",
+            file=sys.stderr,
+        )
         return 2
     if not args.freq.exists():
         print(f"frequency list not found: {args.freq}", file=sys.stderr)

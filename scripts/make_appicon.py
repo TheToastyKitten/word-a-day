@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-OUT = Path("RussianWordOfDayApp/Resources/Assets.xcassets/AppIcon.appiconset/appicon_da_1024.png")
+OUT = Path("RussianWordADayApp/Resources/Assets.xcassets/AppIcon.appiconset/appicon_da_1024.png")
 SIZE = 1024
 TEXT = "да!"
 

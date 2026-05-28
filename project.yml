@@ -1,4 +1,4 @@
-name: RussianWordOfDay
+name: RussianWordADay
 options:
   bundleIdPrefix: com.zackmiller
   deploymentTarget:
@@ -17,29 +17,31 @@ settings:
     ENABLE_PREVIEWS: YES
 
 targets:
-  RussianWordOfDay:
+  RussianWordADay:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: RussianWordOfDayApp/Sources
-      - path: RussianWordOfDayApp/Resources/dictionary.sqlite
+      - path: RussianWordADayApp/Sources
+      - path: RussianWordADayApp/PrivacyInfo.xcprivacy
+      - path: RussianWordADayApp/Resources/dictionary.sqlite
         buildPhase: resources
-      - path: RussianWordOfDayApp/Resources/Assets.xcassets
+      - path: RussianWordADayApp/Resources/Assets.xcassets
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.zackmiller.RussianWordOfDay
-        PRODUCT_NAME: RussianWordOfDay
+        PRODUCT_BUNDLE_IDENTIFIER: com.zackmiller.RussianWordADay
+        PRODUCT_NAME: RussianWordADay
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
-      path: RussianWordOfDayApp/Resources/Info.plist
+      path: RussianWordADayApp/Resources/Info.plist
       properties:
         CFBundleDisplayName: "Word a Day"
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
         UILaunchScreen:
           UIColorName: ""

@@ -1,0 +1,435 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0FD8904CF634B68F512830BB /* GlossFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0CB16B183E6D9AEF380DEB /* GlossFormatting.swift */; };
+		18597B623D168C04D718908F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC561D668236A334320A0FE8 /* AppDelegate.swift */; };
+		2AE468F58F5EC31F2645F1E9 /* ManageUsedWordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810DD42153A7934740609C43 /* ManageUsedWordsView.swift */; };
+		388D8FD7E1DB0AC41621B155 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E14AE47BA5A07C282AB9CA /* RootView.swift */; };
+		39298BFB758EE29DC2D80A74 /* RussianHeadwordSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C471419DAFB09C13C461316 /* RussianHeadwordSpeaker.swift */; };
+		57CF35E2F75FF8C440014CD8 /* AlphabetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F5D4D2A7BF610411BD33B3 /* AlphabetView.swift */; };
+		61437302FF17BD895100195C /* WordADayScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2661F19654F17573BD7FA0EC /* WordADayScheduler.swift */; };
+		637900C964A3EA813C7EC38A /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F311766798B50B8E88A4DFC /* AppRouter.swift */; };
+		6A499E2262437055A51874E7 /* RussianWordADayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DFDEE1699E6999189B5A8F /* RussianWordADayApp.swift */; };
+		77EA9960D599A5436CC5D1F6 /* PronunciationSpeedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4DCB16D8B475E9950A1395 /* PronunciationSpeedControl.swift */; };
+		895A0DB99BD43842EB949AE0 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1038FB13E712A8BB93228DDA /* FavoritesView.swift */; };
+		9212FEFC4EC5A77081649321 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C715B9ABD67DB2106ED4296 /* MainView.swift */; };
+		9A88472E39BFE2389311750E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 83449D79C29F4479477622A6 /* PrivacyInfo.xcprivacy */; };
+		9E2AA4E07CCB6806BA5206C5 /* LegalContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA1252D0FB587976955EC46 /* LegalContent.swift */; };
+		A39A21EC20FFD6C0A72371D5 /* QuizYourselfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33F28C6337F14438E73B3EC /* QuizYourselfView.swift */; };
+		A7ED611357920C22A88C045B /* LegalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94369EA1992AC99D069C0E29 /* LegalView.swift */; };
+		B29F25FC7AEE37A5F4926630 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 264BBE6654873A664FD073EE /* Assets.xcassets */; };
+		B2BD60333D598C1A08517669 /* dictionary.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 20A4FB0D84B62A51AF615964 /* dictionary.sqlite */; };
+		B49484FBFDBA7C57C98D0470 /* CyrillicAlphabet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82A2D4D55524011D8F635F48 /* CyrillicAlphabet.swift */; };
+		C052D09848A34816EC34B997 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7436D53DA9E40364C7A1EED /* Models.swift */; };
+		C5CBBA4B83FBAE1072DBB9F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBB65529AED70CA60250B18 /* SettingsView.swift */; };
+		DA386EF28B7963048C034B3D /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5E579A8B4F0F718A13F09D4 /* Notifications.swift */; };
+		E9B4E9D3C466BB5D98AD01E8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B7E8590074447E0C4BCF61 /* AppSettings.swift */; };
+		EE0D3073FBF238E9212AD730 /* WordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9301989BA22AEBB1DF88B64 /* WordStore.swift */; };
+		FC19B45461C24107382995CE /* NumbersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD4BC7A3821CF1C75F159701 /* NumbersView.swift */; };
+		FC3126DF8544DEF96580F732 /* WordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B43AEA824F5CF9A2D7455276 /* WordDetailView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		06F5D4D2A7BF610411BD33B3 /* AlphabetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlphabetView.swift; sourceTree = "<group>"; };
+		0BBB65529AED70CA60250B18 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0C715B9ABD67DB2106ED4296 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		1038FB13E712A8BB93228DDA /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
+		12DFDEE1699E6999189B5A8F /* RussianWordADayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianWordADayApp.swift; sourceTree = "<group>"; };
+		20A4FB0D84B62A51AF615964 /* dictionary.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = dictionary.sqlite; sourceTree = "<group>"; };
+		264BBE6654873A664FD073EE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2661F19654F17573BD7FA0EC /* WordADayScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordADayScheduler.swift; sourceTree = "<group>"; };
+		2A0CB16B183E6D9AEF380DEB /* GlossFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossFormatting.swift; sourceTree = "<group>"; };
+		50390D950C97111BA7607333 /* RussianWordADay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = RussianWordADay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		56E14AE47BA5A07C282AB9CA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		5F311766798B50B8E88A4DFC /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		7C471419DAFB09C13C461316 /* RussianHeadwordSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianHeadwordSpeaker.swift; sourceTree = "<group>"; };
+		810DD42153A7934740609C43 /* ManageUsedWordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageUsedWordsView.swift; sourceTree = "<group>"; };
+		82A2D4D55524011D8F635F48 /* CyrillicAlphabet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyrillicAlphabet.swift; sourceTree = "<group>"; };
+		83449D79C29F4479477622A6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		94369EA1992AC99D069C0E29 /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
+		A33F28C6337F14438E73B3EC /* QuizYourselfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizYourselfView.swift; sourceTree = "<group>"; };
+		AD4BC7A3821CF1C75F159701 /* NumbersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumbersView.swift; sourceTree = "<group>"; };
+		B43AEA824F5CF9A2D7455276 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
+		C1B7E8590074447E0C4BCF61 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		C7436D53DA9E40364C7A1EED /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		C9301989BA22AEBB1DF88B64 /* WordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordStore.swift; sourceTree = "<group>"; };
+		CC561D668236A334320A0FE8 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		EAA1252D0FB587976955EC46 /* LegalContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalContent.swift; sourceTree = "<group>"; };
+		F5E579A8B4F0F718A13F09D4 /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
+		FB4DCB16D8B475E9950A1395 /* PronunciationSpeedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationSpeedControl.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3B317A784B7D4A475B2ED833 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				06F5D4D2A7BF610411BD33B3 /* AlphabetView.swift */,
+				1038FB13E712A8BB93228DDA /* FavoritesView.swift */,
+				94369EA1992AC99D069C0E29 /* LegalView.swift */,
+				0C715B9ABD67DB2106ED4296 /* MainView.swift */,
+				810DD42153A7934740609C43 /* ManageUsedWordsView.swift */,
+				AD4BC7A3821CF1C75F159701 /* NumbersView.swift */,
+				FB4DCB16D8B475E9950A1395 /* PronunciationSpeedControl.swift */,
+				A33F28C6337F14438E73B3EC /* QuizYourselfView.swift */,
+				56E14AE47BA5A07C282AB9CA /* RootView.swift */,
+				0BBB65529AED70CA60250B18 /* SettingsView.swift */,
+				B43AEA824F5CF9A2D7455276 /* WordDetailView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		646B36E35B1C986AEA7B831E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				50390D950C97111BA7607333 /* RussianWordADay.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		858393B6195B9BCB8E4CD7D7 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				264BBE6654873A664FD073EE /* Assets.xcassets */,
+				20A4FB0D84B62A51AF615964 /* dictionary.sqlite */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A6F7B03E619ED3DBD73E7666 /* RussianWordADayApp */ = {
+			isa = PBXGroup;
+			children = (
+				858393B6195B9BCB8E4CD7D7 /* Resources */,
+				BCCBB5B1CC190B8147312ADC /* Sources */,
+				83449D79C29F4479477622A6 /* PrivacyInfo.xcprivacy */,
+			);
+			path = RussianWordADayApp;
+			sourceTree = "<group>";
+		};
+		BCCBB5B1CC190B8147312ADC /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				3B317A784B7D4A475B2ED833 /* Views */,
+				CC561D668236A334320A0FE8 /* AppDelegate.swift */,
+				5F311766798B50B8E88A4DFC /* AppRouter.swift */,
+				C1B7E8590074447E0C4BCF61 /* AppSettings.swift */,
+				82A2D4D55524011D8F635F48 /* CyrillicAlphabet.swift */,
+				2A0CB16B183E6D9AEF380DEB /* GlossFormatting.swift */,
+				EAA1252D0FB587976955EC46 /* LegalContent.swift */,
+				C7436D53DA9E40364C7A1EED /* Models.swift */,
+				F5E579A8B4F0F718A13F09D4 /* Notifications.swift */,
+				7C471419DAFB09C13C461316 /* RussianHeadwordSpeaker.swift */,
+				12DFDEE1699E6999189B5A8F /* RussianWordADayApp.swift */,
+				2661F19654F17573BD7FA0EC /* WordADayScheduler.swift */,
+				C9301989BA22AEBB1DF88B64 /* WordStore.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		E595FA472938D0BBC2FEBA04 = {
+			isa = PBXGroup;
+			children = (
+				A6F7B03E619ED3DBD73E7666 /* RussianWordADayApp */,
+				646B36E35B1C986AEA7B831E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6A25C5582E6B8A074B1CC25C /* RussianWordADay */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8B1D3D58666E764FCDBA2AD2 /* Build configuration list for PBXNativeTarget "RussianWordADay" */;
+			buildPhases = (
+				B861B2A2C4F216996B90D327 /* Sources */,
+				9598FD969F3974FD3C4898AC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RussianWordADay;
+			packageProductDependencies = (
+			);
+			productName = RussianWordADay;
+			productReference = 50390D950C97111BA7607333 /* RussianWordADay.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0592AC9070895DF85D45E0F0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					6A25C5582E6B8A074B1CC25C = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 398D7FA1ACF029A97F57E830 /* Build configuration list for PBXProject "RussianWordADay" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E595FA472938D0BBC2FEBA04;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 646B36E35B1C986AEA7B831E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6A25C5582E6B8A074B1CC25C /* RussianWordADay */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9598FD969F3974FD3C4898AC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B29F25FC7AEE37A5F4926630 /* Assets.xcassets in Resources */,
+				9A88472E39BFE2389311750E /* PrivacyInfo.xcprivacy in Resources */,
+				B2BD60333D598C1A08517669 /* dictionary.sqlite in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B861B2A2C4F216996B90D327 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57CF35E2F75FF8C440014CD8 /* AlphabetView.swift in Sources */,
+				18597B623D168C04D718908F /* AppDelegate.swift in Sources */,
+				637900C964A3EA813C7EC38A /* AppRouter.swift in Sources */,
+				E9B4E9D3C466BB5D98AD01E8 /* AppSettings.swift in Sources */,
+				B49484FBFDBA7C57C98D0470 /* CyrillicAlphabet.swift in Sources */,
+				895A0DB99BD43842EB949AE0 /* FavoritesView.swift in Sources */,
+				0FD8904CF634B68F512830BB /* GlossFormatting.swift in Sources */,
+				9E2AA4E07CCB6806BA5206C5 /* LegalContent.swift in Sources */,
+				A7ED611357920C22A88C045B /* LegalView.swift in Sources */,
+				9212FEFC4EC5A77081649321 /* MainView.swift in Sources */,
+				2AE468F58F5EC31F2645F1E9 /* ManageUsedWordsView.swift in Sources */,
+				C052D09848A34816EC34B997 /* Models.swift in Sources */,
+				DA386EF28B7963048C034B3D /* Notifications.swift in Sources */,
+				FC19B45461C24107382995CE /* NumbersView.swift in Sources */,
+				77EA9960D599A5436CC5D1F6 /* PronunciationSpeedControl.swift in Sources */,
+				A39A21EC20FFD6C0A72371D5 /* QuizYourselfView.swift in Sources */,
+				388D8FD7E1DB0AC41621B155 /* RootView.swift in Sources */,
+				39298BFB758EE29DC2D80A74 /* RussianHeadwordSpeaker.swift in Sources */,
+				6A499E2262437055A51874E7 /* RussianWordADayApp.swift in Sources */,
+				C5CBBA4B83FBAE1072DBB9F8 /* SettingsView.swift in Sources */,
+				61437302FF17BD895100195C /* WordADayScheduler.swift in Sources */,
+				FC3126DF8544DEF96580F732 /* WordDetailView.swift in Sources */,
+				EE0D3073FBF238E9212AD730 /* WordStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5670F3CD4E7A339F76E928C6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = RussianWordADayApp/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zackmiller.RussianWordADay;
+				PRODUCT_NAME = RussianWordADay;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		97959D07AA1CBBA9C11CBA2A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C9978F8BF3DDAB13D1D8CF24 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = RussianWordADayApp/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zackmiller.RussianWordADay;
+				PRODUCT_NAME = RussianWordADay;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		EC4C872B930574D039EE5014 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		398D7FA1ACF029A97F57E830 /* Build configuration list for PBXProject "RussianWordADay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97959D07AA1CBBA9C11CBA2A /* Debug */,
+				EC4C872B930574D039EE5014 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8B1D3D58666E764FCDBA2AD2 /* Build configuration list for PBXNativeTarget "RussianWordADay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5670F3CD4E7A339F76E928C6 /* Debug */,
+				C9978F8BF3DDAB13D1D8CF24 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0592AC9070895DF85D45E0F0 /* Project object */;
+}

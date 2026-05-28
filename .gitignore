@@ -10,7 +10,10 @@ xcuserdata/
 
 # XcodeGen-managed: regenerable from project.yml
 # (uncomment the next line if you want the .xcodeproj to live only on developer machines)
-# RussianWordOfDay.xcodeproj/
+# RussianWordADay.xcodeproj/
+
+# OpenRussian CSV exports (large; fetch with scripts/download_openrussian.py)
+data/openrussian/
 
 # macOS
 .DS_Store
