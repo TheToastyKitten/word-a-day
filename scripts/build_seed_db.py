@@ -81,6 +81,7 @@ LEXICAL_BUILD_POS: frozenset[str] = frozenset(
         "preposition",
         "conj",
         "conjunction",
+        "other",
     )
 )
 
@@ -238,7 +239,77 @@ EN_SOLO_TOPONYM_HEADWORDS = frozenset({
     "sofia",
     "zagreb",
     "belgrade",
+    "russia",
+    "america",
+    "usa",
+    "china",
+    "japan",
+    "korea",
+    "france",
+    "germany",
+    "spain",
+    "italy",
+    "england",
+    "britain",
+    "egypt",
+    "norway",
+    "sweden",
+    "switzerland",
+    "austria",
+    "netherlands",
+    "ireland",
+    "israel",
+    "turkey",
+    "scotland",
+    "wales",
 })
+
+# English headwords that are geographic common nouns, not placenames (avoid
+# false positives from GEO_GLOSS_RE substrings like “continent”, “island”).
+GEO_VOCAB_HEADWORDS = frozenset({
+    "continent",
+    "island",
+    "islands",
+    "river",
+    "lake",
+    "mountain",
+    "ocean",
+    "sea",
+    "country",
+    "city",
+    "town",
+    "village",
+    "region",
+    "state",
+    "peninsula",
+    "archipelago",
+})
+
+# OpenRussian headlines: person names / letter names (headline-only; stricter
+# than PERSON_NAME_GLOSS_RE so “nickname” / “first name” vocabulary stays).
+OPENRUSSIAN_PERSON_HEADLINE_RE = re.compile(
+    r"(?is)"
+    r"\b(?:a|the)\s+(?:male|female)\s+given\s+name\b|"
+    r"\b(?:a|the)\s+surname\b|"
+    r"\([^)]*\b(?:surname|given\s+name|first\s+name)\b[^)]*\)|"
+    r"\b(?:male|female)\s+(?:given\s+)?name\)"
+)
+
+OPENRUSSIAN_PLACE_HEADLINE_RE = re.compile(
+    r"(?is)\b("
+    r"a country|an archipelago|insular state|federal city|capital city|capital of|"
+    r"principal city|census-designated place|municipal town|town in|city in|city of|"
+    r"province of|territorial entity|district of|borough of|national park|prefecture|"
+    r"United States|Russian Federation|Soviet Union|United Kingdom|\bUSA\b|"
+    r"North America|South America|Central America|"
+    r"located primarily|geographic region|"
+    r"States of the United States|\bU\.S\. state\b"
+    r")\b"
+)
+
+OPENRUSSIAN_LETTER_NAME_RE = re.compile(
+    r"(?i)\b(name of the letter|Cyrillic letter|Roman letter)\b"
+)
 
 # Lemma ends with relational placename adjectives (-ский paradigm).
 RU_TOPONYMIC_ADJ_SUFFIX_RE = re.compile(
@@ -643,6 +714,61 @@ def should_exclude_person_name_entry(obj: dict, first_lex: Optional[str]) -> boo
         return True
     if first_lex and PERSON_NAME_GLOSS_RE.search(first_lex):
         return True
+    return False
+
+
+def is_letter_name_only_entry(en: str, gloss_lines: list[str]) -> bool:
+    """True when every gloss is about a letter name (no homonym senses like ша → shush)."""
+    if not OPENRUSSIAN_LETTER_NAME_RE.search(en or ""):
+        return False
+    for gloss in gloss_lines:
+        g = (gloss or "").strip()
+        if not g or g == (en or "").strip():
+            continue
+        if OPENRUSSIAN_LETTER_NAME_RE.search(g):
+            continue
+        return False
+    return True
+
+
+def should_exclude_proper_noun_openrussian(
+    ru: str,
+    en: str,
+    gloss_lines: list[str],
+    *,
+    geo_lemmas: frozenset[str],
+) -> bool:
+    """
+    Drop OpenRussian rows whose learner headline is chiefly a placename, personal
+    name, or letter name. Uses the English headline only (not secondary glosses)
+    so vocabulary like имя / фамилия / остров stay in the dictionary.
+    """
+    lemma_norm = normalize_for_index(ru)
+    if lemma_norm in geo_lemmas:
+        return True
+    if any(stem in lemma_norm for stem in TOPONYM_LEMMA_SUBSTRINGS):
+        return True
+
+    headline = (en or "").strip()
+    if not headline:
+        return False
+
+    if is_letter_name_only_entry(headline, gloss_lines):
+        return True
+
+    if OPENRUSSIAN_PERSON_HEADLINE_RE.search(headline):
+        return True
+
+    head = first_english_topo_headword(headline)
+    if head in GEO_VOCAB_HEADWORDS:
+        return False
+
+    if OPENRUSSIAN_PLACE_HEADLINE_RE.search(headline):
+        return True
+
+    if head in EN_SOLO_TOPONYM_HEADWORDS:
+        return True
+
     return False
 
 

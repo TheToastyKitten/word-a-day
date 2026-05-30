@@ -1,6 +1,6 @@
 # Word a Day — Privacy Policy
 
-**Last updated:** May 28, 2026
+**Last updated:** May 30, 2026
 
 This page is the public privacy policy for **Word a Day**, an offline Russian–English dictionary for iOS with optional daily word reminders. A shorter summary also appears inside the app under **Settings → Legal & privacy**.
 
@@ -14,9 +14,10 @@ To work offline, the app keeps some information locally on your iPhone or iPad, 
 
 - The bundled dictionary database and search index.
 - Your notification schedule and pronunciation preferences.
-- Which words have been used for daily reminders, favourites, and recently viewed words.
+- Which words have already been pushed as daily reminders.
+- Your favourited words, recently viewed words, and personal notes you write on individual word entries.
 
-This information stays on your device unless you delete the app or use in-app controls to reset relevant data (for example, resetting used words). It is not transmitted to the developer.
+This information stays on your device unless you delete the app or use in-app controls to reset relevant data (for example, resetting pushed words on the **Pushed words** screen). It is not transmitted to the developer.
 
 ## 3. Notifications
 
@@ -34,7 +35,7 @@ The app does not include third-party advertising SDKs, analytics SDKs, or cross-
 
 ## 6. Open data and legal credits
 
-The offline dictionary incorporates material from [OpenRussian.org](https://en.openrussian.org/) (CC BY-SA 4.0), example sentences from [Tatoeba](https://tatoeba.org/) contributors where needed (typically CC BY 2.0 FR), and frequency data from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT).
+The offline dictionary incorporates material derived from [OpenRussian.org](https://en.openrussian.org/) (CC BY-SA 4.0), **adapted for this app** (lemma selection and combined with other licensed sources). This is not an official OpenRussian export. The bundle also uses example sentences from [Tatoeba](https://tatoeba.org/) contributors where needed (typically CC BY 2.0 FR), and frequency data from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT). See [DATA_LICENSES.md](../DATA_LICENSES.md) in the project repository for full attributions.
 
 ## 7. Children
 

@@ -7,6 +7,8 @@ struct WordDetailView: View {
     @EnvironmentObject private var store: WordStore
     @StateObject private var pronunciationSpeaker = RussianHeadwordSpeaker()
     @State private var isFavorite = false
+    @State private var personalNote = ""
+    @State private var noteSaveTask: Task<Void, Never>?
 
     /// Maximum numbered lines under **Meaning** (offline glosses).
     private static let meaningLineDisplayLimit = 5
@@ -32,6 +34,8 @@ struct WordDetailView: View {
                 if let word {
                     headerSection(word: word)
                     meaningSection(word: word)
+                    relatedFormSection(word: word)
+                    personalNotesSection(wordID: word.id)
                     pronunciationSection(word: word)
                     examplesSection(word: word)
                     lettersSection(for: word.russian)
@@ -84,11 +88,17 @@ struct WordDetailView: View {
                 store.recordRecentView(id: wordID)
             }
             isFavorite = store.isFavorite(id: wordID)
+            personalNote = store.personalNote(for: wordID)
         }
-        .onChange(of: wordID) { _, _ in
+        .onChange(of: wordID) { oldID, newID in
+            noteSaveTask?.cancel()
+            store.setPersonalNote(personalNote, for: oldID)
             pronunciationSpeaker.stopImmediately()
+            personalNote = store.personalNote(for: newID)
         }
         .onDisappear {
+            noteSaveTask?.cancel()
+            store.setPersonalNote(personalNote, for: wordID)
             pronunciationSpeaker.stopImmediately()
         }
     }
@@ -370,25 +380,129 @@ struct WordDetailView: View {
         case "conj": return "conjunction"
         case "prep": return "preposition"
         case "num": return "number"
+        case "other": return "other"
         default: return p
         }
     }
 
+    @ViewBuilder
+    private func relatedFormSection(word: WordEntry) -> some View {
+        if let ref = relatedLemmaReference(for: word) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Related form")
+                    .font(.headline)
+
+                if let relatedID = store.findWordID(russianHeadword: ref.lemma) {
+                    Text(relatedFormLinkText(displayText: ref.displayText, lemma: ref.lemma, relatedID: relatedID))
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(ref.displayText)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private struct RelatedLemmaReference {
+        let lemma: String
+        let displayText: String
+    }
+
+    private func relatedLemmaReference(for word: WordEntry) -> RelatedLemmaReference? {
+        let enLower = word.english.lowercased()
+        if let lemma = linkedRussianLemma(in: word.english) {
+            if enLower.contains("adjective of") {
+                return RelatedLemmaReference(
+                    lemma: lemma,
+                    displayText: "Adjective of \(lemma)."
+                )
+            }
+            if enLower.contains("diminutive") {
+                return RelatedLemmaReference(
+                    lemma: lemma,
+                    displayText: "Diminutive of \(lemma)."
+                )
+            }
+            if enLower.contains("form of") || enLower.contains(" of ") {
+                return RelatedLemmaReference(
+                    lemma: lemma,
+                    displayText: "Related form: \(lemma)."
+                )
+            }
+        }
+
+        if let glosses = word.glosses_en {
+            for line in glosses.split(separator: "\n") {
+                if let lemma = linkedRussianLemma(in: String(line)) {
+                    return RelatedLemmaReference(
+                        lemma: lemma,
+                        displayText: "Related form: \(lemma)."
+                    )
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func relatedFormLinkText(displayText: String, lemma: String, relatedID: String) -> AttributedString {
+        var attr = AttributedString(displayText)
+        if let range = attr.range(of: lemma) {
+            attr[range].link = URL(string: "rwd://word/\(relatedID)")
+            attr[range].foregroundColor = .init(.link)
+        }
+        return attr
+    }
+
+    @ViewBuilder
+    private func personalNotesSection(wordID: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Notes")
+                .font(.headline)
+
+            ZStack(alignment: .topLeading) {
+                if personalNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Add your own note for this word…")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $personalNote)
+                    .font(.body)
+                    .frame(minHeight: 60)
+                    .scrollContentBackground(.hidden)
+                    .onChange(of: personalNote) { _, newValue in
+                        noteSaveTask?.cancel()
+                        noteSaveTask = Task {
+                            try? await Task.sleep(nanoseconds: 450_000_000)
+                            guard !Task.isCancelled else { return }
+                            store.setPersonalNote(newValue, for: wordID)
+                        }
+                    }
+            }
+            .padding(8)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .padding(.top, 4)
+    }
+
     private func pronunciationSection(word: WordEntry) -> some View {
         let phonetic = word.phonetic?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let usageNote = word.ai_note_en?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         return VStack(alignment: .leading, spacing: 8) {
             Text("Pronunciation")
                 .font(.headline)
             if !phonetic.isEmpty {
                 Text(phonetic)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if !usageNote.isEmpty {
-                Text(usageNote)
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

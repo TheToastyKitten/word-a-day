@@ -4,10 +4,12 @@ import UserNotifications
 struct ManageUsedWordsView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: WordStore
+    @EnvironmentObject private var scheduler: WordADayScheduler
     @State private var entries: [UsedWord] = []
     @State private var pendingIDs: Set<String> = []
     @State private var hasLoaded: Bool = false
     @State private var query: String = ""
+    @State private var showResetConfirm = false
 
     private var filteredEntries: [UsedWord] {
         let q = Self.normalizeForSearch(query)
@@ -30,7 +32,7 @@ struct ManageUsedWordsView: View {
         Group {
             if hasLoaded && entries.isEmpty {
                 ContentUnavailableView(
-                    "No used words yet",
+                    "No pushed words yet",
                     systemImage: "tray",
                     description: Text("Words you've already received as a push will show up here. Tap \u{201C}Add back\u{201D} on any row to put it back in the pool.")
                 )
@@ -38,6 +40,15 @@ struct ManageUsedWordsView: View {
                 ContentUnavailableView.search(text: query)
             } else {
                 List {
+                    Section {
+                        Button(role: .destructive) {
+                            showResetConfirm = true
+                        } label: {
+                            Text("Reset all")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+
                     Section {
                         ForEach(filteredEntries) { entry in
                             row(for: entry)
@@ -50,12 +61,20 @@ struct ManageUsedWordsView: View {
                 }
             }
         }
-        .navigationTitle("Used words")
+        .navigationTitle("Pushed words")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Reset all pushed words?", isPresented: $showResetConfirm) {
+            Button("Reset all", role: .destructive) {
+                Task { await resetAll() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be reversed, are you sure?")
+        }
         .searchable(
             text: $query,
             placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search used words"
+            prompt: "Search pushed words"
         )
         .autocorrectionDisabled(true)
         .textInputAutocapitalization(.never)
@@ -73,7 +92,7 @@ struct ManageUsedWordsView: View {
 
     private var footerLabel: Text {
         if query.isEmpty {
-            return Text("\(entries.count) used word\(entries.count == 1 ? "" : "s")")
+            return Text("\(entries.count) pushed word\(entries.count == 1 ? "" : "s")")
         } else {
             return Text("\(filteredEntries.count) of \(entries.count) match\(filteredEntries.count == 1 ? "es" : "")")
         }
@@ -147,5 +166,12 @@ struct ManageUsedWordsView: View {
                     .removePendingNotificationRequests(withIdentifiers: cancelledIDs)
             }
         }
+    }
+
+    private func resetAll() async {
+        store.resetUsedWords()
+        await scheduler.purgeAfterReset()
+        entries = []
+        query = ""
     }
 }

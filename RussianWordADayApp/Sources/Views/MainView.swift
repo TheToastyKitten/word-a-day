@@ -56,8 +56,8 @@ struct MainView: View {
         } message: {
             Text(
                 "This app is a Russian–English dictionary with text-to-speech pronunciation. You can turn on multiple "
-                    + "\"daily word\" push notifications and quiz yourself on words you've "
-                    + "already received — all from Settings.\n\n"
+                    + "\"daily word\" push notifications and quiz yourself on pushed or favourited words "
+                    + "— all from Settings.\n\n"
                     + "Tip: Download a Russian voice for pronunciation on your iPhone: "
                     + "Settings → Accessibility → Read & Speak → Voices → Russian. "
                     + "(On some iOS versions, Read & Speak is called Spoken Content.)"
@@ -362,6 +362,7 @@ struct MainView: View {
         case "conj", "conjunction": return "Conj"
         case "particle": return "Part."
         case "interjection", "intj": return "Intj"
+        case "other": return "Other"
         default: return nil
         }
     }
@@ -378,6 +379,7 @@ private enum POSFilter: CaseIterable, Hashable {
     case conj
     case particle
     case interjection
+    case other
 
     var label: String {
         switch self {
@@ -390,6 +392,7 @@ private enum POSFilter: CaseIterable, Hashable {
         case .conj: return "Conj"
         case .particle: return "Part."
         case .interjection: return "Intj"
+        case .other: return "Other"
         }
     }
 
@@ -405,6 +408,7 @@ private enum POSFilter: CaseIterable, Hashable {
         case .conj: return ["conj", "conjunction"]
         case .particle: return ["particle"]
         case .interjection: return ["interjection", "intj"]
+        case .other: return ["other"]
         }
     }
 }

@@ -19,8 +19,9 @@ enum LegalContent {
     static let privacyPolicyBody = """
     This app is an entirely offline Russian–English dictionary with optional push notifications. \
     It does not track your personal data across other apps or websites and does not collect any of \
-    your personal information. All audio on the app is generated locally on your device via its own \
-    text-to-speech features.
+    your personal information. Dictionary lookups, favourites, pushed-word history, and notes you \
+    write on word entries are stored only on your device. All audio is generated locally via \
+    text-to-speech.
     """
 
     struct DataSource: Identifiable {
@@ -36,7 +37,7 @@ enum LegalContent {
         DataSource(
             id: "openrussian",
             title: "OpenRussian.org",
-            attribution: "Dictionary data from OpenRussian.org contributors (definitions, usage notes, and bundled examples).",
+            attribution: "Dictionary data from OpenRussian.org contributors (definitions and bundled examples).",
             licenseName: "CC BY-SA 4.0",
             licenseURL: LegalLinks.ccBySa,
             linkURL: LegalLinks.openRussian

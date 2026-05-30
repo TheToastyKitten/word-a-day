@@ -45,13 +45,13 @@
 		264BBE6654873A664FD073EE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2661F19654F17573BD7FA0EC /* WordADayScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordADayScheduler.swift; sourceTree = "<group>"; };
 		2A0CB16B183E6D9AEF380DEB /* GlossFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossFormatting.swift; sourceTree = "<group>"; };
-		50390D950C97111BA7607333 /* RussianWordADay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = RussianWordADay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		50390D950C97111BA7607333 /* RussianWordADay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RussianWordADay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		56E14AE47BA5A07C282AB9CA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		5F311766798B50B8E88A4DFC /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		7C471419DAFB09C13C461316 /* RussianHeadwordSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianHeadwordSpeaker.swift; sourceTree = "<group>"; };
 		810DD42153A7934740609C43 /* ManageUsedWordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageUsedWordsView.swift; sourceTree = "<group>"; };
 		82A2D4D55524011D8F635F48 /* CyrillicAlphabet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CyrillicAlphabet.swift; sourceTree = "<group>"; };
-		83449D79C29F4479477622A6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		83449D79C29F4479477622A6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		94369EA1992AC99D069C0E29 /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
 		A33F28C6337F14438E73B3EC /* QuizYourselfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizYourselfView.swift; sourceTree = "<group>"; };
 		AD4BC7A3821CF1C75F159701 /* NumbersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumbersView.swift; sourceTree = "<group>"; };
@@ -170,7 +170,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					6A25C5582E6B8A074B1CC25C = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -246,14 +245,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = KDD2AT7TGH;
 				INFOPLIST_FILE = RussianWordADayApp/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.zackmiller.RussianWordADay;
 				PRODUCT_NAME = RussianWordADay;
 				SDKROOT = iphoneos;
@@ -333,14 +333,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = KDD2AT7TGH;
 				INFOPLIST_FILE = RussianWordADayApp/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.zackmiller.RussianWordADay;
 				PRODUCT_NAME = RussianWordADay;
 				SDKROOT = iphoneos;

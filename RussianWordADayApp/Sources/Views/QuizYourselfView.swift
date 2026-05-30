@@ -1,19 +1,18 @@
 import SwiftUI
 
-/// One question: Russian headword + four shuffled English choices (exactly one matches the headline gloss).
+/// One question: prompt word + four shuffled choices (exactly one correct).
 private struct SelfQuizQuestion: Identifiable {
     let id: String
     let word: WordEntry
     let choices: [String]
-
-    var correctEnglish: String {
-        word.englishHeadline.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 @MainActor
 struct QuizYourselfView: View {
     @EnvironmentObject private var store: WordStore
+
+    let source: QuizSource
+    let direction: QuizDirection
 
     private enum Phase {
         case loading
@@ -23,7 +22,7 @@ struct QuizYourselfView: View {
 
     @State private var phase: Phase = .loading
     @State private var questions: [SelfQuizQuestion] = []
-    /// Selected English string per question index (display form).
+    /// Selected answer string per question index (display form).
     @State private var selections: [Int: String] = [:]
 
     var body: some View {
@@ -35,11 +34,9 @@ struct QuizYourselfView: View {
             case .active:
                 if questions.isEmpty {
                     ContentUnavailableView(
-                        "No used words yet",
-                        systemImage: "tray",
-                        description: Text(
-                            "Words you have already received as notifications appear here. Come back after you have a few saved."
-                        )
+                        emptyStateTitle,
+                        systemImage: emptyStateSymbol,
+                        description: Text(emptyStateDescription)
                     )
                 } else {
                     quizForm
@@ -52,31 +49,47 @@ struct QuizYourselfView: View {
                 }
             }
         }
-        .navigationTitle("Quiz Yourself")
+        .navigationTitle(direction.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { startQuiz() }
+        .task(id: quizTaskID) { startQuiz() }
+    }
+
+    private var quizTaskID: String {
+        switch source {
+        case .pushed: return "pushed-\(direction.rawValue)"
+        case .favorites: return "favorites-\(direction.rawValue)"
+        }
+    }
+
+    private var emptyStateTitle: String {
+        switch source {
+        case .pushed: return "No pushed words yet"
+        case .favorites: return "No favourited words yet"
+        }
+    }
+
+    private var emptyStateSymbol: String {
+        switch source {
+        case .pushed: return "tray"
+        case .favorites: return "star"
+        }
+    }
+
+    private var emptyStateDescription: String {
+        switch source {
+        case .pushed:
+            return "Words you have already received as push notifications appear here. Come back after you have a few saved."
+        case .favorites:
+            return "Star words on their detail page to save them here, then quiz yourself on them."
+        }
     }
 
     private var quizForm: some View {
         List {
             ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
                 Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(question.word.russian)
-                                .font(.title2.weight(.bold))
-                            if let chip = posChip(question.word.pos) {
-                                Text(chip)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Capsule().fill(Color(uiColor: .secondarySystemFill)))
-                            }
-                        }
-                        pronunciationLine(for: question.word)
-                    }
-                    .listRowSeparator(.hidden, edges: .top)
+                    promptBlock(for: question.word)
+                        .listRowSeparator(.hidden, edges: .top)
 
                     ForEach(question.choices.indices, id: \.self) { choiceIndex in
                         let choice = question.choices[choiceIndex]
@@ -90,7 +103,7 @@ struct QuizYourselfView: View {
                                     .multilineTextAlignment(.leading)
                                 Spacer()
                                 if let picked = selections[index],
-                                   Self.normalizeEnglishKey(picked) == Self.normalizeEnglishKey(choice) {
+                                   answersMatch(picked, choice) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.tint)
                                 }
@@ -129,21 +142,7 @@ struct QuizYourselfView: View {
 
             ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
                 Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(question.word.russian)
-                                .font(.title3.weight(.bold))
-                            if let chip = posChip(question.word.pos) {
-                                Text(chip)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .background(Capsule().fill(Color(uiColor: .secondarySystemFill)))
-                            }
-                        }
-                        pronunciationLine(for: question.word)
-                    }
+                    promptBlock(for: question.word, compact: true)
 
                     resultBlock(
                         label: "Your answer",
@@ -152,7 +151,7 @@ struct QuizYourselfView: View {
                     )
                     resultBlock(
                         label: "Correct answer",
-                        text: question.correctEnglish,
+                        text: correctAnswer(for: question),
                         highlightWrong: false
                     )
                 } header: {
@@ -164,6 +163,45 @@ struct QuizYourselfView: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func promptBlock(for word: WordEntry, compact: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(promptText(for: word))
+                    .font(compact ? .title3.weight(.bold) : .title2.weight(.bold))
+                if let chip = posChip(word.pos) {
+                    Text(chip)
+                        .font(compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, compact ? 6 : 8)
+                        .padding(.vertical, compact ? 3 : 4)
+                        .background(Capsule().fill(Color(uiColor: .secondarySystemFill)))
+                }
+            }
+            if direction == .russianToEnglish {
+                pronunciationLine(for: word)
+            }
+        }
+    }
+
+    private func promptText(for word: WordEntry) -> String {
+        switch direction {
+        case .russianToEnglish:
+            return word.russian
+        case .englishToRussian:
+            return word.englishHeadline
+        }
+    }
+
+    private func correctAnswer(for question: SelfQuizQuestion) -> String {
+        switch direction {
+        case .russianToEnglish:
+            return question.word.englishHeadline.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .englishToRussian:
+            return question.word.russian.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 
@@ -191,9 +229,18 @@ struct QuizYourselfView: View {
 
     private func isCorrect(at index: Int) -> Bool {
         guard index < questions.count else { return false }
-        let chosen = selections[index].map { Self.normalizeEnglishKey($0) } ?? ""
-        let truth = Self.normalizeEnglishKey(questions[index].correctEnglish)
-        return !chosen.isEmpty && chosen == truth
+        let chosen = selections[index]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let truth = correctAnswer(for: questions[index])
+        return !chosen.isEmpty && answersMatch(chosen, truth)
+    }
+
+    private func answersMatch(_ a: String, _ b: String) -> Bool {
+        switch direction {
+        case .russianToEnglish:
+            return Self.normalizeEnglishKey(a) == Self.normalizeEnglishKey(b)
+        case .englishToRussian:
+            return Self.normalizeRussianKey(a) == Self.normalizeRussianKey(b)
+        }
     }
 
     private func posChip(_ pos: String?) -> String? {
@@ -209,27 +256,16 @@ struct QuizYourselfView: View {
         case "conj", "conjunction": return "Conj"
         case "particle": return "Part."
         case "interjection", "intj": return "Intj"
+        case "other": return "Other"
         default: return nil
         }
     }
 
     @ViewBuilder
     private func pronunciationLine(for word: WordEntry) -> some View {
-        // Word detail shows IPA/translit in `phonetic` and the friendly syllable
-        // guide (e.g. "SLOO-zhbah") in **Usage note** (`ai_note_en`). Quiz users
-        // expect the same gray line they associate with “how to say it”.
         let phon = word.phonetic?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let note = word.ai_note_en?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let noteDistinct = !note.isEmpty
-            && note.caseInsensitiveCompare(phon) != .orderedSame
-
         if !phon.isEmpty {
             Text(phon)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        if noteDistinct {
-            Text(note)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -240,13 +276,28 @@ struct QuizYourselfView: View {
         selections = [:]
         store.promoteFiredPushesAndPurge()
 
-        let pool = store.randomUsedWordsForQuiz(limit: 10)
+        let pool: [WordEntry] = switch source {
+        case .pushed:
+            store.randomUsedWordsForQuiz(limit: 10)
+        case .favorites:
+            store.randomFavoriteWordsForQuiz(limit: 10)
+        }
         guard !pool.isEmpty else {
             questions = []
             phase = .active
             return
         }
 
+        questions = switch direction {
+        case .russianToEnglish:
+            buildRussianToEnglishQuestions(from: pool)
+        case .englishToRussian:
+            buildEnglishToRussianQuestions(from: pool)
+        }
+        phase = .active
+    }
+
+    private func buildRussianToEnglishQuestions(from pool: [WordEntry]) -> [SelfQuizQuestion] {
         let correctNorms = Set(pool.map { Self.normalizeEnglishKey($0.englishHeadline) })
         var distractorSource: [String] = []
         var sourceIndex = 0
@@ -269,65 +320,150 @@ struct QuizYourselfView: View {
         for w in pool {
             let correct = w.englishHeadline.trimmingCharacters(in: .whitespacesAndNewlines)
             let cn = Self.normalizeEnglishKey(correct)
-            var wrong: [String] = []
-
-            while wrong.count < 3 {
-                if sourceIndex >= distractorSource.count {
-                    refillDistractors(extraExclude: Set(wrong.map { Self.normalizeEnglishKey($0) }))
+            let wrong = collectWrongChoices(
+                correctKey: cn,
+                correctNorms: correctNorms,
+                pool: pool,
+                excludingWordID: w.id,
+                pickDisplay: { $0.englishHeadline.trimmingCharacters(in: .whitespacesAndNewlines) },
+                pickKey: { Self.normalizeEnglishKey($0) },
+                distractorSource: &distractorSource,
+                sourceIndex: &sourceIndex,
+                refill: refillDistractors,
+                refillMore: {
+                    store.randomEnglishQuizDistractorCandidates(
+                        excludingNormalized: $0,
+                        maxToScan: 800,
+                        maxCollected: 40
+                    )
                 }
-                guard sourceIndex < distractorSource.count else { break }
-                let cand = distractorSource[sourceIndex]
-                sourceIndex += 1
-                let n = Self.normalizeEnglishKey(cand)
-                if n == cn { continue }
-                if wrong.contains(where: { Self.normalizeEnglishKey($0) == n }) { continue }
-                wrong.append(cand)
-            }
-
-            if wrong.count < 3 {
-                for other in pool where other.id != w.id {
-                    let cand = other.englishHeadline.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !cand.isEmpty else { continue }
-                    let n = Self.normalizeEnglishKey(cand)
-                    if n == cn { continue }
-                    if wrong.contains(where: { Self.normalizeEnglishKey($0) == n }) { continue }
-                    wrong.append(cand)
-                    if wrong.count == 3 { break }
-                }
-            }
-
-            while wrong.count < 3 {
-                let more = store.randomEnglishQuizDistractorCandidates(
-                    excludingNormalized: correctNorms
-                        .union([cn])
-                        .union(Set(wrong.map { Self.normalizeEnglishKey($0) })),
-                    maxToScan: 800,
-                    maxCollected: 40
-                )
-                var progressed = false
-                for cand in more {
-                    let n = Self.normalizeEnglishKey(cand)
-                    if n == cn { continue }
-                    if wrong.contains(where: { Self.normalizeEnglishKey($0) == n }) { continue }
-                    wrong.append(cand)
-                    progressed = true
-                    if wrong.count == 3 { break }
-                }
-                if !progressed { break }
-            }
+            )
 
             var choices = wrong.prefix(3).map { $0 } + [correct]
             choices.shuffle()
             built.append(SelfQuizQuestion(id: w.id, word: w, choices: choices))
         }
 
-        questions = built
-        phase = .active
+        return built
+    }
+
+    private func buildEnglishToRussianQuestions(from pool: [WordEntry]) -> [SelfQuizQuestion] {
+        let correctNorms = Set(pool.map { Self.normalizeRussianKey($0.russian) })
+        var distractorSource: [String] = []
+        var sourceIndex = 0
+
+        func refillDistractors(extraExclude: Set<String>) {
+            let merged = correctNorms.union(extraExclude)
+            let batch = store.randomRussianQuizDistractorCandidates(
+                excludingNormalized: merged,
+                maxToScan: 600,
+                maxCollected: 100
+            )
+            distractorSource.append(contentsOf: batch)
+        }
+
+        refillDistractors(extraExclude: [])
+
+        var built: [SelfQuizQuestion] = []
+        built.reserveCapacity(pool.count)
+
+        for w in pool {
+            let correct = w.russian.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cn = Self.normalizeRussianKey(correct)
+            let wrong = collectWrongChoices(
+                correctKey: cn,
+                correctNorms: correctNorms,
+                pool: pool,
+                excludingWordID: w.id,
+                pickDisplay: { $0.russian.trimmingCharacters(in: .whitespacesAndNewlines) },
+                pickKey: { Self.normalizeRussianKey($0) },
+                distractorSource: &distractorSource,
+                sourceIndex: &sourceIndex,
+                refill: refillDistractors,
+                refillMore: {
+                    store.randomRussianQuizDistractorCandidates(
+                        excludingNormalized: $0,
+                        maxToScan: 800,
+                        maxCollected: 40
+                    )
+                }
+            )
+
+            var choices = wrong.prefix(3).map { $0 } + [correct]
+            choices.shuffle()
+            built.append(SelfQuizQuestion(id: w.id, word: w, choices: choices))
+        }
+
+        return built
+    }
+
+    private func collectWrongChoices(
+        correctKey: String,
+        correctNorms: Set<String>,
+        pool: [WordEntry],
+        excludingWordID: String,
+        pickDisplay: (WordEntry) -> String,
+        pickKey: (String) -> String,
+        distractorSource: inout [String],
+        sourceIndex: inout Int,
+        refill: (Set<String>) -> Void,
+        refillMore: (Set<String>) -> [String]
+    ) -> [String] {
+        var wrong: [String] = []
+
+        while wrong.count < 3 {
+            if sourceIndex >= distractorSource.count {
+                refill(Set(wrong.map { pickKey($0) }))
+            }
+            guard sourceIndex < distractorSource.count else { break }
+            let cand = distractorSource[sourceIndex]
+            sourceIndex += 1
+            let n = pickKey(cand)
+            if n == correctKey { continue }
+            if wrong.contains(where: { pickKey($0) == n }) { continue }
+            wrong.append(cand)
+        }
+
+        if wrong.count < 3 {
+            for other in pool where other.id != excludingWordID {
+                let cand = pickDisplay(other)
+                guard !cand.isEmpty else { continue }
+                let n = pickKey(cand)
+                if n == correctKey { continue }
+                if wrong.contains(where: { pickKey($0) == n }) { continue }
+                wrong.append(cand)
+                if wrong.count == 3 { break }
+            }
+        }
+
+        while wrong.count < 3 {
+            let more = refillMore(
+                correctNorms
+                    .union([correctKey])
+                    .union(Set(wrong.map { pickKey($0) }))
+            )
+            var progressed = false
+            for cand in more {
+                let n = pickKey(cand)
+                if n == correctKey { continue }
+                if wrong.contains(where: { pickKey($0) == n }) { continue }
+                wrong.append(cand)
+                progressed = true
+                if wrong.count == 3 { break }
+            }
+            if !progressed { break }
+        }
+
+        return wrong
     }
 
     private static func normalizeEnglishKey(_ s: String) -> String {
         s.lowercased()
             .replacingOccurrences(of: "ё", with: "е")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizeRussianKey(_ s: String) -> String {
+        normalizeEnglishKey(s)
     }
 }

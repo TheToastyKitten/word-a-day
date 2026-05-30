@@ -29,7 +29,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-DEFAULT_TATOEBA_DIR = PROJECT_ROOT / "data" / "tatoeba"
+WORKSPACE_ASSETS = PROJECT_ROOT.parent / "Assets" / "RussianWordADay"
+DEFAULT_TATOEBA_DIR = WORKSPACE_ASSETS / "tatoeba"
 
 TATOEBA_BASE = "https://downloads.tatoeba.org/exports/per_language"
 DUMP_FILES = {
@@ -41,7 +42,7 @@ DUMP_FILES = {
 API = "https://tatoeba.org/en/api_v0/search"
 USER_AGENT = "RussianWordADay-bake/1.0 (tatoeba examples; local build)"
 
-DICTIONARY_VERSION = 32
+DICTIONARY_VERSION = 38
 DEFAULT_MAX_EXAMPLES = 6
 DEFAULT_SLEEP_SEC = 0.12
 MAX_CANDIDATES_PER_LEMMA = 80

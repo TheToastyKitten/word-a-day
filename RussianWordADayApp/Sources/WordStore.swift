@@ -17,12 +17,12 @@ final class WordStore: ObservableObject {
     private let bundledDictionaryExtension = "sqlite"
 
     private static let wordRowSelectSQL =
-        "id, ru, en, meaning_en, pos, glosses_en, ai_note_en, phonetic, " +
-        "COALESCE(examples_en, '') AS examples_en, COALESCE(wiktionary_baked, 1) AS wiktionary_baked"
+        "id, ru, en, meaning_en, pos, glosses_en, phonetic, " +
+        "COALESCE(examples_en, '') AS examples_en"
 
     private static let wordRowSelectPrefixed =
-        "w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic, " +
-        "COALESCE(w.examples_en, '') AS examples_en, COALESCE(w.wiktionary_baked, 1) AS wiktionary_baked"
+        "w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.phonetic, " +
+        "COALESCE(w.examples_en, '') AS examples_en"
 
     // Searchable POS (aligned with LEXICAL_BUILD_POS in build_seed_db.py).
     private static let allowedPOS: [String] = [
@@ -41,6 +41,7 @@ final class WordStore: ObservableObject {
         "preposition",
         "conj",
         "conjunction",
+        "other",
     ]
 
     /// FTS5 bm25: lower score = more relevant match.
@@ -160,8 +161,8 @@ final class WordStore: ObservableObject {
         let fetchCap = min(max(limit * 12, limit + 8), 120)
         sqlite3_bind_int(stmt, bindIndex, Int32(fetchCap))
 
-        let rankCol: Int32 = 11
-        let commonCol: Int32 = 10
+        let rankCol: Int32 = 9
+        let commonCol: Int32 = 8
 
         var hits: [(word: WordEntry, rank: Double, isCommon: Bool)] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -248,7 +249,7 @@ final class WordStore: ObservableObject {
     func usedWords(limit: Int = 200, offset: Int = 0) -> [UsedWord] {
         guard let db else { return [] }
         let sql = """
-        SELECT u.word_id, u.used_at, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.ai_note_en, w.phonetic
+        SELECT u.word_id, u.used_at, \(Self.wordRowSelectPrefixed)
         FROM used_words u
         JOIN words w ON w.id = u.word_id
         WHERE 1 = 1
@@ -302,7 +303,36 @@ final class WordStore: ObservableObject {
 
         var out: [WordEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            out.append(rowToWord(stmt))
+            out.append(rowToWord(stmt, startCol: 2))
+        }
+        return out
+    }
+
+    /// Favourited words in random order (up to `limit`) for the self-quiz.
+    func randomFavoriteWordsForQuiz(limit: Int = 10) -> [WordEntry] {
+        guard let db else { return [] }
+        let sql = """
+        SELECT f.word_id, f.favorited_at, \(Self.wordRowSelectPrefixed)
+        FROM favorite_words f
+        JOIN words w ON w.id = f.word_id
+        WHERE 1 = 1
+        \(Self.allowedPOSClause)
+        ORDER BY RANDOM()
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
+
+        var out: [WordEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            out.append(rowToWord(stmt, startCol: 2))
         }
         return out
     }
@@ -321,6 +351,51 @@ final class WordStore: ObservableObject {
         SELECT w.en
         FROM words w
         WHERE trim(w.en) != ''
+        \(Self.allowedPOSClause)
+          AND w.is_common = 1
+        ORDER BY RANDOM()
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(cap))
+
+        var collected: [String] = []
+        var seenNorm: Set<String> = []
+        let want = max(1, min(maxCollected, 200))
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let raw = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? ""
+            let display = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !display.isEmpty else { continue }
+            let key = normalizeForIndex(display)
+            guard !key.isEmpty else { continue }
+            if excludingNormalized.contains(key) { continue }
+            if seenNorm.contains(key) { continue }
+            seenNorm.insert(key)
+            collected.append(display)
+            if collected.count >= want { break }
+        }
+        return collected
+    }
+
+    /// Russian headwords from random **common** dictionary rows for quiz distractors.
+    func randomRussianQuizDistractorCandidates(
+        excludingNormalized: Set<String>,
+        maxToScan: Int = 400,
+        maxCollected: Int = 80
+    ) -> [String] {
+        guard let db else { return [] }
+        let cap = max(40, min(maxToScan, 2_000))
+        let sql = """
+        SELECT w.ru
+        FROM words w
+        WHERE trim(w.ru) != ''
         \(Self.allowedPOSClause)
           AND w.is_common = 1
         ORDER BY RANDOM()
@@ -466,7 +541,56 @@ final class WordStore: ObservableObject {
         return out
     }
 
+    // MARK: - Personal notes
+
+    func personalNote(for wordID: String) -> String {
+        guard let db else { return "" }
+        var stmt: OpaquePointer?
+        let sql = "SELECT note FROM word_notes WHERE word_id = ? LIMIT 1;"
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return "" }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+        guard sqlite3_step(stmt) == SQLITE_ROW,
+              let c = sqlite3_column_text(stmt, 0)
+        else { return "" }
+        return String(cString: c)
+    }
+
+    func setPersonalNote(_ note: String, for wordID: String, at date: Date = Date()) {
+        guard let db else { return }
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            var stmt: OpaquePointer?
+            let sql = "DELETE FROM word_notes WHERE word_id = ?;"
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+            _ = sqlite3_step(stmt)
+        } else {
+            let sql = "INSERT OR REPLACE INTO word_notes(word_id, note, updated_at) VALUES(?, ?, ?);"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_text(stmt, 1, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+            sqlite3_bind_text(stmt, 2, trimmed, -1, SQLITE_TRANSIENT_SWIFT)
+            sqlite3_bind_int64(stmt, 3, Int64(date.timeIntervalSince1970))
+            _ = sqlite3_step(stmt)
+        }
+        objectWillChange.send()
+    }
+
     // MARK: - Favorites
+
+    func favoriteWordCount() -> Int {
+        guard let db else { return 0 }
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM favorite_words;", -1, &stmt, nil) == SQLITE_OK else {
+            return 0
+        }
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
+        return Int(sqlite3_column_int(stmt, 0))
+    }
 
     func isFavorite(id wordID: String) -> Bool {
         guard let db else { return false }
@@ -533,7 +657,7 @@ final class WordStore: ObservableObject {
         var out: [FavoriteWord] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             let word = rowToWord(stmt)
-            let ts = sqlite3_column_int64(stmt, 10)
+            let ts = sqlite3_column_int64(stmt, 8)
             out.append(FavoriteWord(word: word, favoritedAt: Date(timeIntervalSince1970: TimeInterval(ts))))
         }
         return out
@@ -829,16 +953,14 @@ final class WordStore: ObservableObject {
         try exec("CREATE INDEX IF NOT EXISTS idx_favorite_words_favorited_at ON favorite_words(favorited_at DESC);")
 
         try exec("""
-        CREATE TABLE IF NOT EXISTS word_enrichment(
+        CREATE TABLE IF NOT EXISTS word_notes(
           word_id    TEXT PRIMARY KEY,
-          source     TEXT NOT NULL,
-          fetched_at INTEGER NOT NULL,
-          definitions TEXT NOT NULL DEFAULT '',
-          examples    TEXT NOT NULL DEFAULT '',
-          source_url  TEXT,
+          note       TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
           FOREIGN KEY(word_id) REFERENCES words(id) ON DELETE CASCADE
         );
         """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_word_notes_updated_at ON word_notes(updated_at DESC);")
 
         // Keep words_fts in sync with words (insert/update/delete).
         // Drop+recreate so we can iterate on the trigger body across versions.
@@ -898,9 +1020,6 @@ final class WordStore: ObservableObject {
         if !cols.contains("examples_en") {
             try exec("ALTER TABLE words ADD COLUMN examples_en TEXT;")
         }
-        if !cols.contains("wiktionary_baked") {
-            try exec("ALTER TABLE words ADD COLUMN wiktionary_baked INTEGER NOT NULL DEFAULT 1;")
-        }
     }
 
     private func applyKnownDictionaryFixesIfNeeded() throws {
@@ -940,9 +1059,14 @@ final class WordStore: ObservableObject {
         sqlite3_bind_text(stmt, 6, ruNorm, -1, SQLITE_TRANSIENT_SWIFT)
         _ = sqlite3_step(stmt)
 
-        // If we changed the underlying word, drop cached enrichment so it
-        // re-fetches under the correct POS heuristics.
-        _ = sqlite3_exec(db, "DELETE FROM word_enrichment WHERE word_id = 'pomoch';", nil, nil, nil)
+        // Bundled usage notes are no longer shown; personal notes live in word_notes.
+        _ = sqlite3_exec(
+            db,
+            "UPDATE words SET ai_note_en = NULL WHERE ai_note_en IS NOT NULL AND trim(ai_note_en) != '';",
+            nil,
+            nil,
+            nil
+        )
     }
 
     /// On a fresh install (no `words.sqlite` in App Support) copies the bundled
@@ -984,16 +1108,37 @@ final class WordStore: ObservableObject {
         }.value
     }
 
-    /// Reads the user's `dictionary_version`; if the table is missing or the
-    /// value is older than what the bundled DB ships with (12), swaps the
-    /// dictionary tables in a single transaction while preserving user-state
-    /// tables (`used_words`, `scheduled_pushes`, `recent_views`).
+    private func bundledDictionaryVersion() -> Int {
+        guard let bundled = Bundle.main.url(
+            forResource: bundledDictionaryName,
+            withExtension: bundledDictionaryExtension
+        ) else { return 0 }
+
+        var bundledDb: OpaquePointer?
+        guard sqlite3_open_v2(bundled.path, &bundledDb, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            return 0
+        }
+        defer { sqlite3_close(bundledDb) }
+
+        var stmt: OpaquePointer?
+        let sql = "SELECT value FROM dictionary_version LIMIT 1;"
+        guard sqlite3_prepare_v2(bundledDb, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
+        return Int(sqlite3_column_int(stmt, 0))
+    }
+
+    /// Reads the user's `dictionary_version`; if it is older than the bundled DB,
+    /// swaps the dictionary tables in a single transaction while preserving
+    /// user-state tables (`used_words`, `scheduled_pushes`, `recent_views`, etc.).
     private func migrateBundledDictionaryIfNeeded() throws {
         guard let db else { return }
 
+        let bundledVersion = bundledDictionaryVersion()
+        guard bundledVersion > 0 else { return }
+
         let currentVersion = readDictionaryVersion()
-        let targetVersion: Int = 32
-        if currentVersion >= targetVersion {
+        if currentVersion >= bundledVersion {
             return
         }
 
@@ -1060,7 +1205,7 @@ final class WordStore: ObservableObject {
         try exec("""
         INSERT INTO words(id, ru, en, meaning_en, pos, glosses_en, examples_en, ai_note_en, phonetic,
                           ru_norm, en_norm, is_common, wiktionary_baked)
-        SELECT id, ru, en, meaning_en, pos, glosses_en, examples_en, ai_note_en, phonetic,
+        SELECT id, ru, en, meaning_en, pos, glosses_en, examples_en, NULL, phonetic,
                ru_norm, en_norm, is_common, COALESCE(wiktionary_baked, 1)
         FROM bundled.words;
         """)
@@ -1080,7 +1225,7 @@ final class WordStore: ObservableObject {
         CREATE TABLE IF NOT EXISTS dictionary_version(value INTEGER NOT NULL);
         """)
         try exec("DELETE FROM dictionary_version;")
-        try exec("INSERT INTO dictionary_version(value) VALUES (\(targetVersion));")
+        try exec("INSERT INTO dictionary_version(value) VALUES (\(bundledVersion));")
         try exec("COMMIT;")
 
         // Foreign keys were off across the swap, so any used_words /
@@ -1101,6 +1246,10 @@ final class WordStore: ObservableObject {
         """)
         try exec("""
         DELETE FROM favorite_words
+        WHERE word_id NOT IN (SELECT id FROM words);
+        """)
+        try exec("""
+        DELETE FROM word_notes
         WHERE word_id NOT IN (SELECT id FROM words);
         """)
     }
@@ -1195,10 +1344,8 @@ final class WordStore: ObservableObject {
         let meaning = colText(3)
         let pos = colText(4)
         let glosses = colText(5)
-        let aiNote = colText(6)
-        let phon = colText(7)
-        let examples = colText(8)
-        let wiktionaryBaked = sqlite3_column_int(stmt, startCol + 9) != 0
+        let phon = colText(6)
+        let examples = colText(7)
         return WordEntry(
             id: id,
             russian: ru,
@@ -1207,9 +1354,7 @@ final class WordStore: ObservableObject {
             pos: pos.isEmpty ? nil : pos,
             glosses_en: glosses.isEmpty ? nil : glosses,
             examples_en: examples.isEmpty ? nil : examples,
-            ai_note_en: aiNote.isEmpty ? nil : aiNote,
-            phonetic: phon.isEmpty ? nil : phon,
-            wiktionaryBaked: wiktionaryBaked
+            phonetic: phon.isEmpty ? nil : phon
         )
     }
 

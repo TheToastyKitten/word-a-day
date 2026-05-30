@@ -8,10 +8,7 @@ struct WordEntry: Identifiable, Equatable, Hashable {
     let pos: String?
     let glosses_en: String?
     let examples_en: String?
-    let ai_note_en: String?
     let phonetic: String?
-    /// True when lexicon data was fully baked into the bundle at build time (legacy column name).
-    let wiktionaryBaked: Bool
 }
 
 /// One row of the scheduled push buffer: a future, pre-assigned, non-repeating
@@ -49,6 +46,23 @@ struct FavoriteWord: Identifiable, Hashable {
     var id: String { word.id }
 }
 
+enum QuizSource: Hashable {
+    case pushed
+    case favorites
+}
+
+enum QuizDirection: String, Hashable {
+    case russianToEnglish
+    case englishToRussian
+
+    var title: String {
+        switch self {
+        case .russianToEnglish: return "Russian → English"
+        case .englishToRussian: return "English → Russian"
+        }
+    }
+}
+
 enum AppRoute: Hashable {
     case wordDetail(id: String)
     case settings
@@ -57,6 +71,6 @@ enum AppRoute: Hashable {
     case numbers
     case usedWords
     case favorites
-    case quiz
+    case quiz(source: QuizSource, direction: QuizDirection)
 }
 

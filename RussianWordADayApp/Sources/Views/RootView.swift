@@ -24,8 +24,8 @@ struct RootView: View {
                             ManageUsedWordsView()
                         case .favorites:
                             FavoritesView()
-                        case .quiz:
-                            QuizYourselfView()
+                        case .quiz(let source, let direction):
+                            QuizYourselfView(source: source, direction: direction)
                         }
                     }
             }

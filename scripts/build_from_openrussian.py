@@ -35,8 +35,56 @@ from build_seed_db import (  # noqa: E402
     load_geo_blocklist,
     normalize_for_index,
     read_frequency,
+    should_exclude_proper_noun_openrussian,
     slugify,
 )
+from clean_usage_notes import (  # noqa: E402
+    english_headword_should_drop,
+    is_truncated_english_headline,
+)
+
+
+def pick_learner_headline(gloss_lines: list[str]) -> str:
+    """
+    Choose an English headline that fits MAX_GLOSS_LEN without breaking mid-parenthesis.
+    OpenRussian often splits a gloss like ``volume (of a book, magazine…)`` across lines.
+    """
+    if not gloss_lines:
+        return ""
+
+    first = gloss_lines[0].strip()
+    if is_truncated_english_headline(first):
+        combined = first
+        for extra in gloss_lines[1:6]:
+            combined = f"{combined} {extra.strip()}".strip()
+            if not is_truncated_english_headline(combined):
+                first = combined
+                break
+
+    if len(first) <= MAX_GLOSS_LEN and not is_truncated_english_headline(first):
+        return first
+
+    for candidate in gloss_lines[1:6]:
+        c = candidate.strip()
+        if (
+            c
+            and len(c) <= MAX_GLOSS_LEN
+            and not is_truncated_english_headline(c)
+            and not english_headword_should_drop(c)
+        ):
+            return c
+
+    cut = first[:MAX_GLOSS_LEN]
+    if cut.count("(") > cut.count(")"):
+        paren = cut.rfind("(")
+        if paren > 24:
+            cut = cut[:paren].rstrip()
+    else:
+        sp = cut.rfind(" ")
+        if sp > 24:
+            cut = cut[:sp]
+    cut = cut.rstrip(" ,;(-")
+    return cut + "…"
 
 _VOWELS = set("аеёиоуыэюя")
 
@@ -106,6 +154,13 @@ ALLOWED_TYPES = frozenset(
     }
 )
 
+# OpenRussian sometimes stores Russian text under lang=en (no usable EN gloss).
+OPENRUSSIAN_EN_GLOSS_OVERRIDES: dict[str, str] = {
+    "выскочка": "upstart; know-it-all; hotshot",
+}
+
+_EN_GLOSS_CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")
+
 POS_MAP = {
     "noun": "noun",
     "verb": "verb",
@@ -148,6 +203,121 @@ _DE_WORD = re.compile(
     r"mit|für|außer|geschöpf|menschengestalt|verkraften|können)\b",
     re.I,
 )
+_ES_PT_WORD = re.compile(
+    r"\b(conjunto|en conjunto|en general|también|después|por qué|não|você|está|estão)\b",
+    re.I,
+)
+_ORPHAN_ABOUT_TAIL_RE = re.compile(
+    r"\s+about\s+(direction|location|movement|time|space)\s*$",
+    re.I,
+)
+_CYRILLIC_IN_PARENS_RE = re.compile(r"\([^)]*[\u0400-\u04FF][^)]*\)")
+_TILDE_CYRILLIC_RE = re.compile(r"~\s*[\u0400-\u04FF][\w\u0301\u0300-]*")
+_QUOTED_SEGMENT_RE = re.compile(r'["\']([^"\']+)["\']')
+
+# Cyrillic letters that look like Latin (OpenRussian import typos).
+_GLOSS_HOMOGLYPH_MAP = str.maketrans(
+    {
+        "\u0430": "a",
+        "\u0410": "A",
+        "\u0435": "e",
+        "\u0415": "E",
+        "\u043e": "o",
+        "\u041e": "O",
+        "\u0440": "p",
+        "\u0420": "P",
+        "\u0441": "c",
+        "\u0421": "C",
+        "\u0445": "x",
+        "\u0425": "X",
+        "\u0443": "y",
+        "\u0423": "Y",
+        "\u043a": "k",
+        "\u041a": "K",
+        "\u043c": "m",
+        "\u041c": "M",
+        "\u043d": "h",
+        "\u041d": "H",
+    }
+)
+
+
+def clean_learner_english_gloss(text: str) -> str:
+    """English-only gloss text for headlines (strip embedded Russian hints)."""
+    t = (text or "").strip()
+    t = _CYRILLIC_IN_PARENS_RE.sub("", t)
+    t = _TILDE_CYRILLIC_RE.sub("", t)
+
+    def _drop_quoted_cyrillic(m: re.Match[str]) -> str:
+        inner = m.group(1)
+        letters = [c for c in inner if c.isalpha()]
+        if letters:
+            cyr = sum(1 for c in letters if _EN_GLOSS_CYRILLIC_RE.match(c))
+            if cyr / len(letters) >= 0.5:
+                return ""
+        return m.group(0)
+
+    t = _QUOTED_SEGMENT_RE.sub(_drop_quoted_cyrillic, t)
+    t = t.translate(_GLOSS_HOMOGLYPH_MAP)
+    t = _ORPHAN_ABOUT_TAIL_RE.sub("", t)
+    t = re.sub(r"\s+of\s+and\s*$", "", t, flags=re.I)
+    t = re.sub(r"\s+and\s+and\b", " and", t, flags=re.I)
+    t = re.sub(r"\s+", " ", t).strip(" ,;:-–—")
+    t = re.sub(r"\s+([,.;:])", r"\1", t)
+    return t.strip()
+
+
+def process_learner_gloss(raw: str) -> str:
+    return clean_learner_english_gloss(raw)
+
+
+def english_gloss_is_learner_usable(text: str) -> bool:
+    """English gloss suitable as ``en`` headline (not mis-tagged Russian/German)."""
+    t = (text or "").strip()
+    if not t or not is_likely_english(t):
+        return False
+    letters = [c for c in t if c.isalpha()]
+    if not letters:
+        return False
+    cyr = sum(1 for c in letters if _EN_GLOSS_CYRILLIC_RE.match(c))
+    if cyr / len(letters) > 0.22:
+        return False
+    cleaned = clean_learner_english_gloss(t)
+    if not cleaned or not re.search(r"[a-zA-Z]{2,}", cleaned):
+        return False
+    letters2 = [c for c in cleaned if c.isalpha()]
+    if not letters2:
+        return False
+    cyr2 = sum(1 for c in letters2 if _EN_GLOSS_CYRILLIC_RE.match(c))
+    return cyr2 / len(letters2) <= 0.05
+
+
+def collect_learner_gloss_lines(bare: str, trans_rows: list[dict]) -> list[str]:
+    glosses: list[str] = []
+    seen: set[str] = set()
+    for tr in trans_rows:
+        for g in split_translation_glosses(tr["tl"]):
+            if not english_gloss_is_learner_usable(g):
+                continue
+            cleaned = process_learner_gloss(g)
+            if not cleaned or not re.search(r"[a-zA-Z]{2,}", cleaned):
+                continue
+            key = cleaned.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            glosses.append(cleaned)
+    if not glosses and bare in OPENRUSSIAN_EN_GLOSS_OVERRIDES:
+        for g in split_translation_glosses(OPENRUSSIAN_EN_GLOSS_OVERRIDES[bare]):
+            cleaned = process_learner_gloss(g)
+            if not cleaned:
+                continue
+            key = cleaned.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            glosses.append(cleaned)
+    return glosses
 
 
 def is_likely_english(text: str) -> bool:
@@ -166,6 +336,9 @@ def is_likely_english(text: str) -> bool:
     de_hits = len(_DE_WORD.findall(lower))
     en_hits = len(_EN_HINT.findall(lower))
     if de_hits >= 2 and en_hits < 2:
+        return False
+    es_pt_hits = len(_ES_PT_WORD.findall(lower))
+    if es_pt_hits >= 1 and en_hits < 2:
         return False
     return True
 
@@ -377,20 +550,23 @@ def build_entry(
     *,
     is_common: bool,
     used_ids: set[str],
+    geo_lemmas: frozenset[str],
 ) -> tuple | None:
     bare = (row.get("bare") or "").strip()
     if not bare:
         return None
 
-    gloss_lines: list[str] = []
-    for tr in trans_rows:
-        gloss_lines.extend(split_translation_glosses(tr["tl"]))
+    gloss_lines = collect_learner_gloss_lines(bare, trans_rows)
     if not gloss_lines:
         return None
 
-    headline = gloss_lines[0]
-    if len(headline) > MAX_GLOSS_LEN:
-        headline = headline[: MAX_GLOSS_LEN - 1].rstrip() + "…"
+    headline = pick_learner_headline(gloss_lines)
+    if not headline or english_headword_should_drop(headline):
+        return None
+    if should_exclude_proper_noun_openrussian(
+        bare, headline, gloss_lines, geo_lemmas=geo_lemmas
+    ):
+        return None
     extra = gloss_lines[1:]
     meaning = "; ".join(extra[:4]) if extra else None
     if meaning and len(meaning) > MAX_MEANING_LEN:
@@ -399,7 +575,6 @@ def build_entry(
 
     pos = POS_MAP.get((row.get("type") or "").strip().lower(), row.get("type"))
     accented = (row.get("accented") or "").strip()
-    usage = (row.get("usage_en") or "").strip()
     phonetic = learner_phonetic(accented, bare)
 
     gloss_tokens = gloss_tokens_from_translations(trans_rows)
@@ -414,7 +589,7 @@ def build_entry(
         pos,
         glosses_blob,
         examples,
-        usage or None,
+        None,
         phonetic,
         normalize_for_index(bare),
         normalize_for_index(headline),
@@ -469,8 +644,12 @@ def build(args: argparse.Namespace) -> int:
     sentence_map = load_sentence_examples(csv_dir, word_ids)
 
     used_ids: set[str] = set()
+    seen_wid: set[int] = set()
     rows: list[tuple] = []
     for lemma, wid in selected:
+        if wid in seen_wid:
+            continue
+        seen_wid.add(wid)
         row = words[wid]
         entry = build_entry(
             wid,
@@ -479,6 +658,7 @@ def build(args: argparse.Namespace) -> int:
             sentence_map.get(wid, []),
             is_common=lemma in common_set,
             used_ids=used_ids,
+            geo_lemmas=geo,
         )
         if entry:
             rows.append(entry)
@@ -526,8 +706,15 @@ def build(args: argparse.Namespace) -> int:
 
     size_mb = out_path.stat().st_size / (1024 * 1024)
     print(f"Done. dictionary_version={DICTIONARY_VERSION}, {size_mb:.2f} MB.")
+
+    from clean_usage_notes import clean_database  # noqa: E402
+
+    print("Cleaning dictionary rows (filtering junk lemmas)…")
+    clean_database(out_path, dry_run=False)
+
     print(
-        "Next: python3 scripts/enrich_dictionary_tatoeba.py --from-dump --resume "
+        "Next: python3 scripts/enrich_dictionary_tatoeba.py --download\n"
+        "      python3 scripts/enrich_dictionary_tatoeba.py --from-dump --resume "
         f"--db {out_path}"
     )
     return 0
