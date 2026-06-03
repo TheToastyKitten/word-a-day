@@ -33,6 +33,9 @@
 		EE0D3073FBF238E9212AD730 /* WordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9301989BA22AEBB1DF88B64 /* WordStore.swift */; };
 		FC19B45461C24107382995CE /* NumbersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD4BC7A3821CF1C75F159701 /* NumbersView.swift */; };
 		FC3126DF8544DEF96580F732 /* WordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B43AEA824F5CF9A2D7455276 /* WordDetailView.swift */; };
+		F1A2B3C4D5E6F708192A3B4C /* WordFormsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* WordFormsDisplay.swift */; };
+		D1E2F30415263748596A7B8C /* FlashcardQuizView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B7C8D9E0F1021314151617 /* FlashcardQuizView.swift */; };
+		E2F30415263748596A7B8C9D0 /* RussianNumbersReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30415263748596A7B8C9D0E1 /* RussianNumbersReference.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +66,9 @@
 		EAA1252D0FB587976955EC46 /* LegalContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalContent.swift; sourceTree = "<group>"; };
 		F5E579A8B4F0F718A13F09D4 /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
 		FB4DCB16D8B475E9950A1395 /* PronunciationSpeedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationSpeedControl.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* WordFormsDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordFormsDisplay.swift; sourceTree = "<group>"; };
+		A6B7C8D9E0F1021314151617 /* FlashcardQuizView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashcardQuizView.swift; sourceTree = "<group>"; };
+		F30415263748596A7B8C9D0E1 /* RussianNumbersReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RussianNumbersReference.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -70,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				06F5D4D2A7BF610411BD33B3 /* AlphabetView.swift */,
+				A6B7C8D9E0F1021314151617 /* FlashcardQuizView.swift */,
 				1038FB13E712A8BB93228DDA /* FavoritesView.swift */,
 				94369EA1992AC99D069C0E29 /* LegalView.swift */,
 				0C715B9ABD67DB2106ED4296 /* MainView.swift */,
@@ -120,10 +127,12 @@
 				C1B7E8590074447E0C4BCF61 /* AppSettings.swift */,
 				82A2D4D55524011D8F635F48 /* CyrillicAlphabet.swift */,
 				2A0CB16B183E6D9AEF380DEB /* GlossFormatting.swift */,
+				A1B2C3D4E5F60718293A4B5D /* WordFormsDisplay.swift */,
 				EAA1252D0FB587976955EC46 /* LegalContent.swift */,
 				C7436D53DA9E40364C7A1EED /* Models.swift */,
 				F5E579A8B4F0F718A13F09D4 /* Notifications.swift */,
 				7C471419DAFB09C13C461316 /* RussianHeadwordSpeaker.swift */,
+				F30415263748596A7B8C9D0E1 /* RussianNumbersReference.swift */,
 				12DFDEE1699E6999189B5A8F /* RussianWordADayApp.swift */,
 				2661F19654F17573BD7FA0EC /* WordADayScheduler.swift */,
 				C9301989BA22AEBB1DF88B64 /* WordStore.swift */,
@@ -216,8 +225,10 @@
 				637900C964A3EA813C7EC38A /* AppRouter.swift in Sources */,
 				E9B4E9D3C466BB5D98AD01E8 /* AppSettings.swift in Sources */,
 				B49484FBFDBA7C57C98D0470 /* CyrillicAlphabet.swift in Sources */,
+				D1E2F30415263748596A7B8C /* FlashcardQuizView.swift in Sources */,
 				895A0DB99BD43842EB949AE0 /* FavoritesView.swift in Sources */,
 				0FD8904CF634B68F512830BB /* GlossFormatting.swift in Sources */,
+				F1A2B3C4D5E6F708192A3B4C /* WordFormsDisplay.swift in Sources */,
 				9E2AA4E07CCB6806BA5206C5 /* LegalContent.swift in Sources */,
 				A7ED611357920C22A88C045B /* LegalView.swift in Sources */,
 				9212FEFC4EC5A77081649321 /* MainView.swift in Sources */,
@@ -229,6 +240,7 @@
 				A39A21EC20FFD6C0A72371D5 /* QuizYourselfView.swift in Sources */,
 				388D8FD7E1DB0AC41621B155 /* RootView.swift in Sources */,
 				39298BFB758EE29DC2D80A74 /* RussianHeadwordSpeaker.swift in Sources */,
+				E2F30415263748596A7B8C9D0 /* RussianNumbersReference.swift in Sources */,
 				6A499E2262437055A51874E7 /* RussianWordADayApp.swift in Sources */,
 				C5CBBA4B83FBAE1072DBB9F8 /* SettingsView.swift in Sources */,
 				61437302FF17BD895100195C /* WordADayScheduler.swift in Sources */,

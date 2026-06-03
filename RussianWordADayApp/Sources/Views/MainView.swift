@@ -408,7 +408,7 @@ private enum POSFilter: CaseIterable, Hashable {
         case .conj: return ["conj", "conjunction"]
         case .particle: return ["particle"]
         case .interjection: return ["interjection", "intj"]
-        case .other: return ["other"]
+        case .other: return ["other", "expression", "num"]
         }
     }
 }

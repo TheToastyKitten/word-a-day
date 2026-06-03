@@ -4,35 +4,10 @@ struct NumbersView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: WordStore
 
-    /// Stable `words.id` values from the bundled dictionary for Russian numerals 0…20.
-    private static let rows: [(value: Int, wordID: String)] = [
-        (0, "nol"),
-        (1, "odin"),
-        (2, "dva"),
-        (3, "tri"),
-        (4, "chetyre"),
-        (5, "pyat"),
-        (6, "shest"),
-        (7, "sem"),
-        (8, "vosem"),
-        (9, "devyat"),
-        (10, "desyat"),
-        (11, "odinnadtsat"),
-        (12, "dvenadtsat"),
-        (13, "trinadtsat"),
-        (14, "chetyrnadtsat"),
-        (15, "pyatnadtsat"),
-        (16, "shestnadtsat"),
-        (17, "semnadtsat"),
-        (18, "vosemnadtsat"),
-        (19, "devyatnadtsat"),
-        (20, "dvadtsat"),
-    ]
-
     var body: some View {
         List {
             Section {
-                ForEach(Self.rows, id: \.value) { row in
+                ForEach(RussianNumbersReference.rows, id: \.value) { row in
                     if let word = store.getWord(id: row.wordID) {
                         Button {
                             router.path.append(.wordDetail(id: row.wordID))
@@ -71,5 +46,10 @@ struct NumbersView: View {
         }
         .navigationTitle("Numbers")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                FlashcardQuizToolbarButton(deck: .numbers)
+            }
+        }
     }
 }

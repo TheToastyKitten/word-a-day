@@ -6,7 +6,9 @@ Produce an **open-licensed** offline dictionary for the iOS app: Russian lemma, 
 ### Sources
 - **[OpenRussian.org](https://en.openrussian.org/)** (CC BY-SA 4.0) — definitions, stress, OpenRussian-linked examples.
 - **[Tatoeba](https://tatoeba.org/en/downloads)** (CC BY 2.0 FR) — fills in examples where OpenRussian has none (`--resume`).
-- **[FrequencyWords](https://github.com/hermitdave/FrequencyWords)** `ru_50k.txt` (MIT) — which lemmas ship in the bundle and `is_common` for daily push.
+- **OpenRussian** export — full enabled dictionary rows with English (`build_from_openrussian.py`).
+- **OpenRussian** `rank` — shown in the app; daily push pool uses rank ≤ 2500 only.
+- **[FrequencyWords](https://github.com/hermitdave/FrequencyWords)** `ru_50k.txt` — optional reference only (no longer the bundle allowlist).
 
 ### Build inputs (workspace Assets)
 

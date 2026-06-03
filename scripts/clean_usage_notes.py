@@ -19,11 +19,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from build_seed_db import (  # noqa: E402
+    PUSH_POOL_MAX_OR_RANK,
     english_headword_is_scrubbable_morph,
     should_exclude_proper_noun_openrussian,
 )
 
-DICTIONARY_VERSION = 40
+DICTIONARY_VERSION = 44
 
 CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")
 MORPH_NOTE_MARKERS = (
@@ -103,7 +104,7 @@ def should_delete_row(
     *,
     gloss_lines: list[str] | None = None,
     geo_lemmas: frozenset[str] | None = None,
-    is_common: bool = False,
+    or_rank: int | None = None,
 ) -> bool:
     if english_headword_should_drop(en):
         return True
@@ -117,7 +118,7 @@ def should_delete_row(
     pos_l = (pos or "").lower()
     en_key = (en or "").strip().lower()
     if pos_l == "verb" and en_key and en_key in noun_en_headlines:
-        if is_common:
+        if or_rank is not None and or_rank <= PUSH_POOL_MAX_OR_RANK:
             return False
         if is_trivial_case_note(n) or looks_like_syllable_guide(n) or not n:
             return True
@@ -130,7 +131,9 @@ def _row_keep_rank(row: sqlite3.Row) -> tuple:
     examples = (row["examples_en"] or "").count("\n") + (
         1 if (row["examples_en"] or "").strip() else 0
     )
-    return (-(row["is_common"] or 0), -examples, suffix_penalty, wid)
+    rank = row["or_rank"]
+    rank_key = rank if rank is not None else 999_999
+    return (rank_key, -examples, suffix_penalty, wid)
 
 
 def restore_missing_words(
@@ -152,13 +155,13 @@ def restore_missing_words(
         pick_word_id,
         read_frequency,
     )
+    from openrussian_word_forms import load_forms_index, load_verbs_meta  # noqa: E402
     from build_seed_db import normalize_for_index  # noqa: E402
 
     words = load_words(csv_dir)
     translations = load_en_translations(csv_dir)
     by_bare = index_by_bare(words, translations)
     freq = read_frequency(freq_path)
-    common_set = set(freq[:5000])
     geo = load_geo_blocklist(GEO_BLOCKLIST)
 
     conn = sqlite3.connect(db_path)
@@ -185,6 +188,8 @@ def restore_missing_words(
 
     word_ids = {wid for _, wid in selected}
     sentence_map = load_sentence_examples(csv_dir, word_ids)
+    forms_index = load_forms_index(csv_dir)
+    verbs_meta = load_verbs_meta(csv_dir)
 
     used_ids = {str(r[0]) for r in conn.execute("SELECT id FROM words")}
     to_insert: list[tuple] = []
@@ -195,9 +200,9 @@ def restore_missing_words(
             row,
             translations[wid],
             sentence_map.get(wid, []),
-            is_common=lemma in common_set,
             used_ids=used_ids,
-            geo_lemmas=geo,
+            forms_index=forms_index,
+            verbs_meta=verbs_meta,
         )
         if entry is None:
             continue
@@ -221,8 +226,8 @@ def restore_missing_words(
     try:
         conn.executemany(
             "INSERT INTO words(id, ru, en, meaning_en, pos, glosses_en, examples_en, "
-            "ai_note_en, phonetic, ru_norm, en_norm, is_common) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "ai_note_en, phonetic, ru_norm, en_norm, or_rank, forms_json) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             to_insert,
         )
         conn.executemany(
@@ -263,6 +268,47 @@ def duplicate_ids_to_drop(rows: list[sqlite3.Row]) -> list[str]:
     return to_delete
 
 
+def clean_database_minimal(db_path: Path, *, dry_run: bool) -> int:
+    """Dedupe identical rows and clear legacy ``ai_note_en`` only (no lemma filters)."""
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = list(
+        conn.execute(
+            "SELECT id, ru, en, pos, ru_norm, examples_en, or_rank FROM words ORDER BY id"
+        )
+    )
+    dup_delete = duplicate_ids_to_drop(rows)
+    print(f"Duplicate rows to drop: {len(dup_delete)}")
+    if dry_run:
+        conn.close()
+        return 0
+
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if dup_delete:
+            chunk = 400
+            for i in range(0, len(dup_delete), chunk):
+                part = dup_delete[i : i + chunk]
+                ph = ",".join("?" * len(part))
+                conn.execute(f"DELETE FROM words_fts WHERE id IN ({ph})", part)
+                conn.execute(f"DELETE FROM words WHERE id IN ({ph})", part)
+        conn.execute("UPDATE words SET ai_note_en = NULL WHERE ai_note_en IS NOT NULL")
+        conn.execute("DELETE FROM dictionary_version")
+        conn.execute(
+            "INSERT INTO dictionary_version(value) VALUES (?)",
+            (DICTIONARY_VERSION,),
+        )
+        conn.commit()
+    except BaseException:
+        with contextlib.suppress(Exception):
+            conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()
+    print(f"dictionary_version={DICTIONARY_VERSION}")
+    return len(dup_delete)
+
+
 def clean_database(
     db_path: Path,
     *,
@@ -293,7 +339,7 @@ def clean_database(
     rows = list(
         conn.execute(
             "SELECT id, ru, en, pos, glosses_en, ai_note_en, phonetic, ru_norm, "
-            "examples_en, is_common FROM words ORDER BY id"
+            "examples_en, or_rank FROM words ORDER BY id"
         )
     )
     noun_en_headlines = {
@@ -327,7 +373,7 @@ def clean_database(
             noun_en_headlines,
             gloss_lines=gloss_lines,
             geo_lemmas=geo_lemmas,
-            is_common=bool(r["is_common"]),
+            or_rank=r["or_rank"],
         ):
             to_delete.append(wid)
             continue

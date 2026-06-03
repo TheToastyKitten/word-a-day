@@ -26,6 +26,8 @@ struct RootView: View {
                             FavoritesView()
                         case .quiz(let source, let direction):
                             QuizYourselfView(source: source, direction: direction)
+                        case .flashcardQuiz(let deck, let direction):
+                            FlashcardQuizView(deck: deck, direction: direction)
                         }
                     }
             }

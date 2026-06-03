@@ -9,6 +9,14 @@ struct WordEntry: Identifiable, Equatable, Hashable {
     let glosses_en: String?
     let examples_en: String?
     let phonetic: String?
+    /// OpenRussian usage rank (lower = more common). Nil when unknown.
+    let openRussianRank: Int?
+    /// JSON blob: verb conjugation or noun declension tables.
+    let formsJSON: String?
+
+    var wordFormsPayload: WordFormsPayload? {
+        WordFormsDecoder.decode(from: formsJSON)
+    }
 }
 
 /// One row of the scheduled push buffer: a future, pre-assigned, non-repeating
@@ -63,6 +71,11 @@ enum QuizDirection: String, Hashable {
     }
 }
 
+enum FlashcardDeck: Hashable {
+    case alphabet
+    case numbers
+}
+
 enum AppRoute: Hashable {
     case wordDetail(id: String)
     case settings
@@ -72,5 +85,6 @@ enum AppRoute: Hashable {
     case usedWords
     case favorites
     case quiz(source: QuizSource, direction: QuizDirection)
+    case flashcardQuiz(deck: FlashcardDeck, direction: QuizDirection)
 }
 

@@ -639,7 +639,7 @@ def enrich_via_api(
     where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
     rows = list(
         conn.execute(
-            f"SELECT id, ru FROM words {where} ORDER BY is_common DESC, ru COLLATE NOCASE",
+            f"SELECT id, ru FROM words {where} ORDER BY (or_rank IS NULL), or_rank ASC, ru COLLATE NOCASE",
             binds,
         )
     )

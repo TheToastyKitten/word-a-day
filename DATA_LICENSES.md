@@ -25,7 +25,9 @@ is kept at `data/dictionary.base.sqlite` and is not part of the app bundle.
 
 #### Hermit Dave / FrequencyWords (Russian, 50k)
 - **Repository**: https://github.com/hermitdave/FrequencyWords
-- **Used for**: which lemmas are included in the bundle and the `is_common` flag (daily push / quiz pool).
+- **Used for**: optional reference (the app bundle is built from the full OpenRussian export, not this list).
+
+OpenRussian.org dictionary export supplies dictionary entries, English glosses, and the `rank` field used for in-app frequency banners. The daily push / quiz pool uses OpenRussian rank ≤ 2500 only.
 - **License**: MIT. Attribution: “Frequency data: Hermit Dave, FrequencyWords (MIT).”
 - **Retrieval**: `Projects/Assets/RussianWordADay/ru_50k.txt` (from `content/2018/ru/ru_50k.txt`), retrieved 2026-05-07.
 

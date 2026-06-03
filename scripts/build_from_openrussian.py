@@ -29,18 +29,17 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from build_seed_db import (  # noqa: E402
+    PUSH_POOL_MAX_OR_RANK,
     SCHEMA_SQL,
     english_phrasebook_pronunciation,
-    is_clean_lemma,
-    load_geo_blocklist,
     normalize_for_index,
-    read_frequency,
-    should_exclude_proper_noun_openrussian,
     slugify,
 )
-from clean_usage_notes import (  # noqa: E402
-    english_headword_should_drop,
-    is_truncated_english_headline,
+from clean_usage_notes import is_truncated_english_headline  # noqa: E402
+from openrussian_word_forms import (  # noqa: E402
+    build_forms_json_for_word,
+    load_forms_index,
+    load_verbs_meta,
 )
 
 
@@ -66,12 +65,7 @@ def pick_learner_headline(gloss_lines: list[str]) -> str:
 
     for candidate in gloss_lines[1:6]:
         c = candidate.strip()
-        if (
-            c
-            and len(c) <= MAX_GLOSS_LEN
-            and not is_truncated_english_headline(c)
-            and not english_headword_should_drop(c)
-        ):
+        if c and len(c) <= MAX_GLOSS_LEN and not is_truncated_english_headline(c):
             return c
 
     cut = first[:MAX_GLOSS_LEN]
@@ -131,7 +125,7 @@ DEFAULT_FREQ = WORKSPACE_ASSETS / "ru_50k.txt"
 DEFAULT_OUT = PROJECT_ROOT / "RussianWordADayApp" / "Resources" / "dictionary.sqlite"
 GEO_BLOCKLIST = SCRIPT_DIR / "geo_lemma_blocklist.txt"
 
-DICTIONARY_VERSION = 32
+DICTIONARY_VERSION = 44
 EXAMPLE_FIELD_SEP = "\t"
 MAX_EXAMPLES = 6
 MAX_GLOSS_LEN = 60
@@ -150,7 +144,9 @@ ALLOWED_TYPES = frozenset(
         "particle",
         "interjection",
         "numeral",
+        "expression",
         "other",
+        "",
     }
 )
 
@@ -172,7 +168,9 @@ POS_MAP = {
     "particle": "particle",
     "interjection": "interjection",
     "numeral": "num",
+    "expression": "expression",
     "other": "other",
+    "": "other",
 }
 
 
@@ -292,31 +290,41 @@ def english_gloss_is_learner_usable(text: str) -> bool:
     return cyr2 / len(letters2) <= 0.05
 
 
+def gloss_line_from_translation_tl(tl: str) -> str | None:
+    """
+    One OpenRussian translation row → one gloss line.
+    Commas separate synonyms (stay on one line); semicolons separate senses within a row.
+    """
+    raw = (tl or "").strip()
+    if not raw or not english_gloss_is_learner_usable(raw):
+        return None
+    parts: list[str] = []
+    for meaning in raw.split(";"):
+        chunk = process_learner_gloss(meaning.strip())
+        if chunk and re.search(r"[a-zA-Z]{2,}", chunk):
+            parts.append(chunk)
+    if not parts:
+        return None
+    return "; ".join(parts)
+
+
 def collect_learner_gloss_lines(bare: str, trans_rows: list[dict]) -> list[str]:
+    """Preserve OpenRussian translation row order (one numbered sense per row)."""
     glosses: list[str] = []
     seen: set[str] = set()
     for tr in trans_rows:
-        for g in split_translation_glosses(tr["tl"]):
-            if not english_gloss_is_learner_usable(g):
-                continue
-            cleaned = process_learner_gloss(g)
-            if not cleaned or not re.search(r"[a-zA-Z]{2,}", cleaned):
-                continue
-            key = cleaned.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            glosses.append(cleaned)
+        line = gloss_line_from_translation_tl(tr.get("tl") or "")
+        if not line:
+            continue
+        key = line.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        glosses.append(line)
     if not glosses and bare in OPENRUSSIAN_EN_GLOSS_OVERRIDES:
-        for g in split_translation_glosses(OPENRUSSIAN_EN_GLOSS_OVERRIDES[bare]):
-            cleaned = process_learner_gloss(g)
-            if not cleaned:
-                continue
-            key = cleaned.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            glosses.append(cleaned)
+        line = gloss_line_from_translation_tl(OPENRUSSIAN_EN_GLOSS_OVERRIDES[bare])
+        if line:
+            glosses.append(line)
     return glosses
 
 
@@ -548,9 +556,9 @@ def build_entry(
     trans_rows: list[dict],
     sentence_pairs: list[tuple[str, str]],
     *,
-    is_common: bool,
     used_ids: set[str],
-    geo_lemmas: frozenset[str],
+    forms_index: dict[int, dict[str, str]],
+    verbs_meta: dict[int, dict[str, str]],
 ) -> tuple | None:
     bare = (row.get("bare") or "").strip()
     if not bare:
@@ -560,12 +568,10 @@ def build_entry(
     if not gloss_lines:
         return None
 
-    headline = pick_learner_headline(gloss_lines)
-    if not headline or english_headword_should_drop(headline):
-        return None
-    if should_exclude_proper_noun_openrussian(
-        bare, headline, gloss_lines, geo_lemmas=geo_lemmas
-    ):
+    headline = gloss_lines[0]
+    if len(headline) > MAX_GLOSS_LEN or is_truncated_english_headline(headline):
+        headline = pick_learner_headline(gloss_lines)
+    if not headline:
         return None
     extra = gloss_lines[1:]
     meaning = "; ".join(extra[:4]) if extra else None
@@ -581,6 +587,15 @@ def build_entry(
     examples = format_examples(trans_rows, sentence_pairs, gloss_tokens)
 
     word_id = slugify(bare, used_ids)
+    rank = word_rank(row)
+    or_rank = rank if rank < 999_999 else None
+    forms_json = build_forms_json_for_word(
+        word_id=wid,
+        bare=bare,
+        pos=pos,
+        forms_index=forms_index,
+        verbs_meta=verbs_meta,
+    )
     return (
         word_id,
         bare,
@@ -593,7 +608,8 @@ def build_entry(
         phonetic,
         normalize_for_index(bare),
         normalize_for_index(headline),
-        1 if is_common else 0,
+        or_rank,
+        forms_json,
     )
 
 
@@ -608,64 +624,54 @@ def build(args: argparse.Namespace) -> int:
 
     print(f"Loading OpenRussian words from {csv_dir}…")
     words = load_words(csv_dir)
-    print(f"  ↳ {len(words):,} enabled lemmas (allowed types)")
+    print(f"  ↳ {len(words):,} enabled OpenRussian rows")
 
     print("Loading EN translations…")
     translations = load_en_translations(csv_dir)
-    with_en = sum(1 for wid in words if wid in translations)
-    print(f"  ↳ {with_en:,} with English")
+    eligible = sorted(
+        (wid for wid in words if wid in translations),
+        key=lambda wid: word_rank(words[wid]),
+    )
+    print(f"  ↳ {len(eligible):,} with English (full export, no freq/geo filters)")
+    print(f"  ↳ push pool = OpenRussian rank ≤ {PUSH_POOL_MAX_OR_RANK}")
 
-    by_bare = index_by_bare(words, translations)
-
-    print(f"Reading frequency list: {args.freq}")
-    freq = read_frequency(args.freq)
-    common_set = set(freq[: args.common_limit])
-    print(f"  ↳ {len(freq)} ranked; top {len(common_set)} → is_common")
-
-    geo = load_geo_blocklist(GEO_BLOCKLIST)
-
-    selected: list[tuple[str, int]] = []
-    missing_or = 0
-    for lemma in freq:
-        if not is_clean_lemma(lemma):
-            continue
-        if lemma in geo:
-            continue
-        cands = by_bare.get(normalize_for_index(lemma), [])
-        wid = pick_word_id(cands, words)
-        if wid is None:
-            missing_or += 1
-            continue
-        selected.append((lemma, wid))
-
-    print(f"  ↳ {len(selected):,} freq lemmas matched OpenRussian ({missing_or:,} missing)")
-
-    word_ids = {wid for _, wid in selected}
+    word_ids = set(eligible)
     sentence_map = load_sentence_examples(csv_dir, word_ids)
 
+    print("Loading inflection forms (words_forms.csv)…")
+    forms_index = load_forms_index(csv_dir)
+    verbs_meta = load_verbs_meta(csv_dir)
+    print(f"  ↳ {len(forms_index):,} lemmas with inflected forms")
+
     used_ids: set[str] = set()
-    seen_wid: set[int] = set()
     rows: list[tuple] = []
-    for lemma, wid in selected:
-        if wid in seen_wid:
-            continue
-        seen_wid.add(wid)
+    skipped = 0
+    for wid in eligible:
         row = words[wid]
         entry = build_entry(
             wid,
             row,
             translations[wid],
             sentence_map.get(wid, []),
-            is_common=lemma in common_set,
             used_ids=used_ids,
-            geo_lemmas=geo,
+            forms_index=forms_index,
+            verbs_meta=verbs_meta,
         )
         if entry:
             rows.append(entry)
+        else:
+            skipped += 1
+    if skipped:
+        print(f"  ↳ skipped {skipped:,} rows (no usable English gloss)")
 
     with_ex = sum(1 for r in rows if r[6])
+    push_pool = sum(
+        1
+        for r in rows
+        if r[11] is not None and r[11] <= PUSH_POOL_MAX_OR_RANK
+    )
     print(
-        f"  ↳ built {len(rows):,} entries; {sum(1 for r in rows if r[11])} common; "
+        f"  ↳ built {len(rows):,} entries; {push_pool:,} in push pool (rank ≤ {PUSH_POOL_MAX_OR_RANK}); "
         f"{with_ex:,} with OpenRussian examples"
     )
 
@@ -691,7 +697,7 @@ def build(args: argparse.Namespace) -> int:
         )
         conn.executemany(
             "INSERT INTO words(id, ru, en, meaning_en, pos, glosses_en, examples_en, ai_note_en, "
-            "phonetic, ru_norm, en_norm, is_common) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "phonetic, ru_norm, en_norm, or_rank, forms_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             rows,
         )
         conn.executemany(
@@ -707,10 +713,10 @@ def build(args: argparse.Namespace) -> int:
     size_mb = out_path.stat().st_size / (1024 * 1024)
     print(f"Done. dictionary_version={DICTIONARY_VERSION}, {size_mb:.2f} MB.")
 
-    from clean_usage_notes import clean_database  # noqa: E402
+    from clean_usage_notes import clean_database_minimal  # noqa: E402
 
-    print("Cleaning dictionary rows (filtering junk lemmas)…")
-    clean_database(out_path, dry_run=False)
+    print("Post-build: dedupe exact rows, clear legacy notes…")
+    clean_database_minimal(out_path, dry_run=False)
 
     print(
         "Next: python3 scripts/enrich_dictionary_tatoeba.py --download\n"
@@ -723,8 +729,12 @@ def build(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build dictionary.sqlite from OpenRussian")
     parser.add_argument("--csv-dir", type=Path, default=DEFAULT_CSV_DIR)
-    parser.add_argument("--freq", type=Path, default=DEFAULT_FREQ)
-    parser.add_argument("--common-limit", type=int, default=5000)
+    parser.add_argument(
+        "--freq",
+        type=Path,
+        default=DEFAULT_FREQ,
+        help="unused (kept for CLI compatibility; dictionary includes all OpenRussian EN rows)",
+    )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args()
     return build(args)

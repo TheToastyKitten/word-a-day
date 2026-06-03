@@ -20,6 +20,11 @@ struct AlphabetView: View {
         }
         .navigationTitle("Alphabet")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                FlashcardQuizToolbarButton(deck: .alphabet)
+            }
+        }
     }
 }
 

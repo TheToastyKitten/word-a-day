@@ -16,13 +16,19 @@ final class WordStore: ObservableObject {
     private let bundledDictionaryName = "dictionary"
     private let bundledDictionaryExtension = "sqlite"
 
+    /// Daily push / quiz distractor pool: OpenRussian rank ≤ this value.
+    static let pushPoolMaxOpenRussianRank = 2500
+
+    private static let pushPoolRankClause =
+        "AND w.or_rank IS NOT NULL AND w.or_rank <= \(pushPoolMaxOpenRussianRank)"
+
     private static let wordRowSelectSQL =
         "id, ru, en, meaning_en, pos, glosses_en, phonetic, " +
-        "COALESCE(examples_en, '') AS examples_en"
+        "COALESCE(examples_en, '') AS examples_en, or_rank, forms_json"
 
     private static let wordRowSelectPrefixed =
         "w.id, w.ru, w.en, w.meaning_en, w.pos, w.glosses_en, w.phonetic, " +
-        "COALESCE(w.examples_en, '') AS examples_en"
+        "COALESCE(w.examples_en, '') AS examples_en, w.or_rank, w.forms_json"
 
     // Searchable POS (aligned with LEXICAL_BUILD_POS in build_seed_db.py).
     private static let allowedPOS: [String] = [
@@ -41,22 +47,25 @@ final class WordStore: ObservableObject {
         "preposition",
         "conj",
         "conjunction",
+        "expression",
         "other",
     ]
 
     /// FTS5 bm25: lower score = more relevant match.
     private static func compareSearchHits(
-        _ a: (rank: Double, isCommon: Bool),
-        _ b: (rank: Double, isCommon: Bool)
+        _ a: (ftsRank: Double, openRussianRank: Int?),
+        _ b: (ftsRank: Double, openRussianRank: Int?)
     ) -> Bool {
-        let rankGap = abs(a.rank - b.rank)
+        let rankGap = abs(a.ftsRank - b.ftsRank)
         if rankGap > 1.25 {
-            return a.rank < b.rank
+            return a.ftsRank < b.ftsRank
         }
-        if a.isCommon != b.isCommon {
-            return a.isCommon && !b.isCommon
+        let aOR = a.openRussianRank ?? Int.max
+        let bOR = b.openRussianRank ?? Int.max
+        if aOR != bOR {
+            return aOR < bOR
         }
-        return a.rank < b.rank
+        return a.ftsRank < b.ftsRank
     }
 
     private static let allowedPOSClause: String =
@@ -132,13 +141,13 @@ final class WordStore: ObservableObject {
             : "AND lower(trim(w.pos)) IN (\(Array(repeating: "?", count: pos.count).joined(separator: ", ")))"
 
         let sql = """
-        SELECT \(Self.wordRowSelectPrefixed), w.is_common, bm25(words_fts) AS fts_rank
+        SELECT \(Self.wordRowSelectPrefixed), bm25(words_fts) AS fts_rank
         FROM words_fts f
         JOIN words w ON w.id = f.id
         WHERE words_fts MATCH ?
         \(Self.allowedPOSClause)
         \(posClause)
-        ORDER BY fts_rank ASC, w.is_common DESC
+        ORDER BY fts_rank ASC, (w.or_rank IS NULL), w.or_rank ASC
         LIMIT ?;
         """
 
@@ -157,26 +166,24 @@ final class WordStore: ObservableObject {
             bindIndex += 1
         }
         // Pull extra candidates so we can drop morph gloss rows and re-rank by
-        // relevance, then common words, then the rest.
+        // relevance, then lower OpenRussian rank (more common), then the rest.
         let fetchCap = min(max(limit * 12, limit + 8), 120)
         sqlite3_bind_int(stmt, bindIndex, Int32(fetchCap))
 
-        let rankCol: Int32 = 9
-        let commonCol: Int32 = 8
+        let ftsRankCol: Int32 = 10
 
-        var hits: [(word: WordEntry, rank: Double, isCommon: Bool)] = []
+        var hits: [(word: WordEntry, ftsRank: Double)] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             let w = rowToWord(stmt)
             if Self.englishLooksLikeMorphSearchNoise(w.english) { continue }
-            let rank = sqlite3_column_double(stmt, rankCol)
-            let isCommon = sqlite3_column_int(stmt, commonCol) != 0
-            hits.append((w, rank, isCommon))
+            let ftsRank = sqlite3_column_double(stmt, ftsRankCol)
+            hits.append((w, ftsRank))
         }
 
         hits.sort {
             Self.compareSearchHits(
-                (rank: $0.rank, isCommon: $0.isCommon),
-                (rank: $1.rank, isCommon: $1.isCommon)
+                (ftsRank: $0.ftsRank, openRussianRank: $0.word.openRussianRank),
+                (ftsRank: $1.ftsRank, openRussianRank: $1.word.openRussianRank)
             )
         }
         return hits.prefix(limit).map(\.word)
@@ -193,25 +200,101 @@ final class WordStore: ObservableObject {
         return rowToWord(stmt)
     }
 
-    /// Best-effort lookup for a Russian headword (exact match on normalized `ru_norm`).
-    func findWordID(russianHeadword raw: String) -> String? {
-        guard let db else { return nil }
-        let norm = normalizeForIndex(raw)
-        guard !norm.isEmpty else { return nil }
+    /// Current entry plus other senses that share the same Russian spelling (for homograph tabs).
+    func spellingHomographGroup(for wordID: String, limit: Int = 12) -> [WordEntry] {
+        guard let current = getWord(id: wordID) else { return [] }
+        let others = homographs(sharingLemmaWith: wordID, limit: limit)
+        guard !others.isEmpty else { return [current] }
+        let all = [current] + others
+        return all.sorted { lhs, rhs in
+            let lRank = lhs.openRussianRank ?? Int.max
+            let rRank = rhs.openRussianRank ?? Int.max
+            if lRank != rRank { return lRank < rRank }
+            let lPos = (lhs.pos ?? "").lowercased()
+            let rPos = (rhs.pos ?? "").lowercased()
+            if lPos != rPos { return lPos < rPos }
+            return lhs.id < rhs.id
+        }
+    }
+
+    /// Other dictionary entries with the same Russian spelling (different POS / sense).
+    func homographs(sharingLemmaWith wordID: String, limit: Int = 12) -> [WordEntry] {
+        guard let db, let word = getWord(id: wordID) else { return [] }
+        let norm = normalizeForIndex(word.russian)
+        guard !norm.isEmpty else { return [] }
         let sql = """
+        SELECT \(Self.wordRowSelectSQL)
+        FROM words w
+        WHERE w.ru_norm = ?
+          AND w.id != ?
+        \(Self.allowedPOSClause)
+        ORDER BY (w.or_rank IS NULL), w.or_rank ASC, w.id ASC
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, norm, -1, SQLITE_TRANSIENT_SWIFT)
+        sqlite3_bind_text(stmt, 2, wordID, -1, SQLITE_TRANSIENT_SWIFT)
+        var bindIndex: Int32 = 3
+        for p in Self.allowedPOS {
+            sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        sqlite3_bind_int(stmt, bindIndex, Int32(limit))
+
+        var out: [WordEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            out.append(rowToWord(stmt))
+        }
+        return out
+    }
+
+    /// Best-effort lookup for a Russian headword (exact match on normalized `ru_norm`).
+    func findWordID(
+        russianHeadword raw: String,
+        excludingID: String? = nil,
+        preferredPOS: String? = nil
+    ) -> String? {
+        guard let db else { return nil }
+        let norm = normalizeRussianLookup(raw)
+        guard !norm.isEmpty else { return nil }
+
+        var sql = """
         SELECT id
         FROM words w
         WHERE w.ru_norm = ?
         \(Self.allowedPOSClause)
-        LIMIT 1;
         """
+        if let excludingID, !excludingID.isEmpty {
+            sql += "\n          AND w.id != ?"
+        }
+        if let preferredPOS, !preferredPOS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sql += """
+            ORDER BY CASE WHEN lower(trim(w.pos)) = lower(trim(?)) THEN 0 ELSE 1 END,
+                     (w.or_rank IS NULL), w.or_rank ASC
+            """
+        } else {
+            sql += "\n        ORDER BY (w.or_rank IS NULL), w.or_rank ASC"
+        }
+        sql += "\n        LIMIT 1;"
+
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, norm, -1, SQLITE_TRANSIENT_SWIFT)
-        var bindIndex: Int32 = 2
+        var bindIndex: Int32 = 1
+        sqlite3_bind_text(stmt, bindIndex, norm, -1, SQLITE_TRANSIENT_SWIFT)
+        bindIndex += 1
         for p in Self.allowedPOS {
             sqlite3_bind_text(stmt, bindIndex, p, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        if let excludingID, !excludingID.isEmpty {
+            sqlite3_bind_text(stmt, bindIndex, excludingID, -1, SQLITE_TRANSIENT_SWIFT)
+            bindIndex += 1
+        }
+        if let preferredPOS, !preferredPOS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sqlite3_bind_text(stmt, bindIndex, preferredPOS, -1, SQLITE_TRANSIENT_SWIFT)
             bindIndex += 1
         }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
@@ -352,7 +435,7 @@ final class WordStore: ObservableObject {
         FROM words w
         WHERE trim(w.en) != ''
         \(Self.allowedPOSClause)
-          AND w.is_common = 1
+          \(Self.pushPoolRankClause)
         ORDER BY RANDOM()
         LIMIT ?;
         """
@@ -397,7 +480,7 @@ final class WordStore: ObservableObject {
         FROM words w
         WHERE trim(w.ru) != ''
         \(Self.allowedPOSClause)
-          AND w.is_common = 1
+          \(Self.pushPoolRankClause)
         ORDER BY RANDOM()
         LIMIT ?;
         """
@@ -797,7 +880,7 @@ final class WordStore: ObservableObject {
         WHERE u.word_id IS NULL
           AND s.word_id IS NULL
           \(Self.allowedPOSClause)
-          AND w.is_common = 1
+          \(Self.pushPoolRankClause)
         ORDER BY RANDOM()
         LIMIT 1;
         """
@@ -866,8 +949,8 @@ final class WordStore: ObservableObject {
 
         // Canonical table. ru_norm/en_norm are the FTS-indexable forms
         // (lowercased, ё→е). The display columns ru/en are kept verbatim.
-        // is_common = 1 for the top frequency-list lemmas; push pool draws
-        // only from common words while search reads the full table.
+        // or_rank = OpenRussian usage rank (lower = more common). Push pool
+        // draws only from rows with rank ≤ pushPoolMaxOpenRussianRank.
         try exec("""
         CREATE TABLE IF NOT EXISTS words(
           id         TEXT PRIMARY KEY,
@@ -881,7 +964,8 @@ final class WordStore: ObservableObject {
           phonetic   TEXT,
           ru_norm    TEXT NOT NULL DEFAULT '',
           en_norm    TEXT NOT NULL DEFAULT '',
-          is_common  INTEGER NOT NULL DEFAULT 0,
+          or_rank    INTEGER,
+          forms_json TEXT,
           wiktionary_baked INTEGER NOT NULL DEFAULT 1
         );
         """)
@@ -1019,6 +1103,12 @@ final class WordStore: ObservableObject {
 
         if !cols.contains("examples_en") {
             try exec("ALTER TABLE words ADD COLUMN examples_en TEXT;")
+        }
+        if !cols.contains("or_rank") {
+            try exec("ALTER TABLE words ADD COLUMN or_rank INTEGER;")
+        }
+        if !cols.contains("forms_json") {
+            try exec("ALTER TABLE words ADD COLUMN forms_json TEXT;")
         }
     }
 
@@ -1197,16 +1287,20 @@ final class WordStore: ObservableObject {
           phonetic   TEXT,
           ru_norm    TEXT NOT NULL DEFAULT '',
           en_norm    TEXT NOT NULL DEFAULT '',
-          is_common  INTEGER NOT NULL DEFAULT 0,
+          or_rank    INTEGER,
+          forms_json TEXT,
           wiktionary_baked INTEGER NOT NULL DEFAULT 1
         );
         """)
-        try exec("CREATE INDEX IF NOT EXISTS idx_words_is_common ON words(is_common) WHERE is_common = 1;")
+        try exec("""
+        CREATE INDEX IF NOT EXISTS idx_words_or_rank_push ON words(or_rank)
+        WHERE or_rank IS NOT NULL AND or_rank <= \(Self.pushPoolMaxOpenRussianRank);
+        """)
         try exec("""
         INSERT INTO words(id, ru, en, meaning_en, pos, glosses_en, examples_en, ai_note_en, phonetic,
-                          ru_norm, en_norm, is_common, wiktionary_baked)
+                          ru_norm, en_norm, or_rank, forms_json, wiktionary_baked)
         SELECT id, ru, en, meaning_en, pos, glosses_en, examples_en, NULL, phonetic,
-               ru_norm, en_norm, is_common, COALESCE(wiktionary_baked, 1)
+               ru_norm, en_norm, or_rank, forms_json, COALESCE(wiktionary_baked, 1)
         FROM bundled.words;
         """)
         try exec("""
@@ -1299,6 +1393,11 @@ final class WordStore: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Russian headword lookup: index normalization plus OpenRussian `'` stress markers.
+    private func normalizeRussianLookup(_ s: String) -> String {
+        normalizeForIndex(s).replacingOccurrences(of: "'", with: "")
+    }
+
     /// True when the primary English line is Wiktionary morphology, not a dictionary gloss.
     private static func englishLooksLikeMorphSearchNoise(_ s: String) -> Bool {
         let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1346,6 +1445,19 @@ final class WordStore: ObservableObject {
         let glosses = colText(5)
         let phon = colText(6)
         let examples = colText(7)
+        let orRankCol = startCol + 8
+        let formsCol = startCol + 9
+        let openRussianRank: Int? = {
+            guard sqlite3_column_type(stmt, orRankCol) != SQLITE_NULL else { return nil }
+            let v = sqlite3_column_int(stmt, orRankCol)
+            return v > 0 ? Int(v) : nil
+        }()
+        let formsJSON: String? = {
+            guard sqlite3_column_type(stmt, formsCol) != SQLITE_NULL else { return nil }
+            guard let c = sqlite3_column_text(stmt, formsCol) else { return nil }
+            let s = String(cString: c).trimmingCharacters(in: .whitespacesAndNewlines)
+            return s.isEmpty ? nil : s
+        }()
         return WordEntry(
             id: id,
             russian: ru,
@@ -1354,7 +1466,9 @@ final class WordStore: ObservableObject {
             pos: pos.isEmpty ? nil : pos,
             glosses_en: glosses.isEmpty ? nil : glosses,
             examples_en: examples.isEmpty ? nil : examples,
-            phonetic: phon.isEmpty ? nil : phon
+            phonetic: phon.isEmpty ? nil : phon,
+            openRussianRank: openRussianRank,
+            formsJSON: formsJSON
         )
     }
 

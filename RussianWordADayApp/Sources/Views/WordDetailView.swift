@@ -30,21 +30,26 @@ struct WordDetailView: View {
     var body: some View {
         let word = store.getWord(id: wordID)
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 0) {
                 if let word {
-                    headerSection(word: word)
-                    meaningSection(word: word)
-                    relatedFormSection(word: word)
-                    personalNotesSection(wordID: word.id)
-                    pronunciationSection(word: word)
-                    examplesSection(word: word)
-                    lettersSection(for: word.russian)
+                    homographTabBar(currentWord: word)
+                    VStack(alignment: .leading, spacing: 18) {
+                        headerSection(word: word)
+                        meaningSection(word: word)
+                        relatedFormSection(word: word)
+                        personalNotesSection(wordID: word.id)
+                        pronunciationSection(word: word)
+                        examplesSection(word: word)
+                        formsSection(word: word)
+                        lettersSection(for: word.russian)
+                    }
+                    .padding(16)
                 } else {
                     Text("Word not found.")
                         .foregroundStyle(.secondary)
+                        .padding(16)
                 }
             }
-            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .environment(\.openURL, OpenURLAction { url in
                 if url.scheme == "rwd", url.host == "word" {
@@ -121,7 +126,7 @@ struct WordDetailView: View {
     }
 
     private func headerSection(word: WordEntry) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(word.russian)
                     .font(.system(size: 44, weight: .bold, design: .serif))
@@ -137,7 +142,24 @@ struct WordDetailView: View {
                         )
                 }
             }
+            if let rank = word.openRussianRank {
+                openRussianRankBanner(rank: rank)
+            }
         }
+    }
+
+    private func openRussianRankBanner(rank: Int) -> some View {
+        Text("Rank \(rank)")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(.systemGray6))
+            )
+            .fixedSize(horizontal: true, vertical: true)
+            .accessibilityLabel("OpenRussian frequency rank \(rank)")
     }
 
     @ViewBuilder
@@ -311,7 +333,11 @@ struct WordDetailView: View {
 
     private func meaningLine(_ line: String) -> some View {
         if let linked = linkedRussianLemma(in: line),
-           let id = store.findWordID(russianHeadword: linked)
+           let id = store.findWordID(
+                russianHeadword: linked,
+                excludingID: wordID,
+                preferredPOS: store.getWord(id: wordID)?.pos
+            )
         {
             var attr = AttributedString(line)
             if let range = attr.range(of: linked) {
@@ -386,13 +412,94 @@ struct WordDetailView: View {
     }
 
     @ViewBuilder
+    private func homographTabBar(currentWord: WordEntry) -> some View {
+        let group = store.spellingHomographGroup(for: currentWord.id)
+        if group.count < 2 {
+            EmptyView()
+        } else {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    ForEach(group) { entry in
+                        homographTab(entry: entry, isSelected: entry.id == wordID)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8)
+
+                Divider()
+            }
+            .padding(.bottom, 4)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Spelling variants")
+        }
+    }
+
+    private func homographTabTitle(_ entry: WordEntry) -> String {
+        let pos = homographTabPOSWord(entry.pos)
+        return "\(pos) \(entry.russian)"
+    }
+
+    private func homographTabPOSWord(_ posRaw: String?) -> String {
+        let p = posRaw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "other"
+        switch p {
+        case "noun": return "noun"
+        case "verb": return "verb"
+        case "adj", "adjective": return "adjective"
+        case "adv", "adverb": return "adverb"
+        case "pron", "pronoun": return "pronoun"
+        case "prep", "preposition": return "preposition"
+        case "conj", "conjunction": return "conjunction"
+        case "particle": return "particle"
+        case "interjection", "intj": return "interjection"
+        case "expression": return "expression"
+        default: return p
+        }
+    }
+
+    private func homographTab(entry: WordEntry, isSelected: Bool) -> some View {
+        Button {
+            guard entry.id != wordID else { return }
+            router.openWordDetail(id: entry.id)
+        } label: {
+            VStack(spacing: 0) {
+                Text(homographTabTitle(entry))
+                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+
+                Rectangle()
+                    .fill(isSelected ? Color.accentColor : Color.clear)
+                    .frame(height: 2)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityLabel(homographTabTitle(entry))
+        .accessibilityHint(isSelected ? "Current word" : "Opens this spelling variant")
+    }
+
+    @ViewBuilder
+    private func formsSection(word: WordEntry) -> some View {
+        if let payload = word.wordFormsPayload {
+            WordFormsSectionView(payload: payload, currentWordID: word.id)
+        }
+    }
+
+    @ViewBuilder
     private func relatedFormSection(word: WordEntry) -> some View {
         if let ref = relatedLemmaReference(for: word) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Related form")
                     .font(.headline)
 
-                if let relatedID = store.findWordID(russianHeadword: ref.lemma) {
+                if let relatedID = store.findWordID(
+                    russianHeadword: ref.lemma,
+                    excludingID: word.id,
+                    preferredPOS: nil
+                ) {
                     Text(relatedFormLinkText(displayText: ref.displayText, lemma: ref.lemma, relatedID: relatedID))
                         .font(.body)
                         .foregroundStyle(.secondary)
@@ -525,7 +632,6 @@ struct WordDetailView: View {
             } label: {
                 Label {
                     Text(isSpeaking ? "Stop" : "Play Russian")
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 } icon: {
                     Image(systemName: isSpeaking ? "stop.circle.fill" : "play.circle.fill")
                         .symbolRenderingMode(.hierarchical)
@@ -534,7 +640,7 @@ struct WordDetailView: View {
                 .labelStyle(.titleAndIcon)
             }
             .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel(isSpeaking ? "Stop pronunciation" : "Play Russian pronunciation")
             .accessibilityHint(
                 settings.pronunciationRateScale <= 0

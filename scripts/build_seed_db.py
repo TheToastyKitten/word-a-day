@@ -59,6 +59,8 @@ MAX_MEANING_LEN = 200
 MAX_GLOSSES = 5
 MEANING_GLOSSES_LIMIT = 4
 DICTIONARY_VERSION = 28
+# OpenRussian rank ceiling for daily push notifications and quiz distractors.
+PUSH_POOL_MAX_OR_RANK = 2500
 # Lexical POS: content words + everyday function words learners need in speech.
 
 # Allowed Kaikki `pos` values for rows that may enter lemma merge (must agree
@@ -477,7 +479,7 @@ TRANSLIT_MAP = {
     "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
 }
 
-SCHEMA_SQL = """
+SCHEMA_SQL = f"""
 CREATE TABLE words(
   id         TEXT PRIMARY KEY,
   ru         TEXT NOT NULL,
@@ -490,10 +492,12 @@ CREATE TABLE words(
   phonetic   TEXT,
   ru_norm    TEXT NOT NULL DEFAULT '',
   en_norm    TEXT NOT NULL DEFAULT '',
-  is_common  INTEGER NOT NULL DEFAULT 0,
+  or_rank    INTEGER,
+  forms_json TEXT,
   wiktionary_baked INTEGER NOT NULL DEFAULT 1
 );
-CREATE INDEX idx_words_is_common ON words(is_common) WHERE is_common = 1;
+CREATE INDEX idx_words_or_rank_push ON words(or_rank)
+  WHERE or_rank IS NOT NULL AND or_rank <= {PUSH_POOL_MAX_OR_RANK};
 
 CREATE VIRTUAL TABLE words_fts USING fts5(
   id UNINDEXED,
